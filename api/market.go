@@ -13,7 +13,6 @@ import (
 )
 
 func mapMarketSwapToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
-
 	swap, ok := msg.(market.MsgSwap)
 	if !ok {
 		return se, errors.New("Not a swap type")
@@ -50,7 +49,6 @@ func mapMarketSwapToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
 }
 
 func mapMarketSwapSendToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
-
 	swap, ok := msg.(market.MsgSwapSend)
 	if !ok {
 		return se, errors.New("Not a swapsend type")

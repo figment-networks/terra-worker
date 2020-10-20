@@ -91,7 +91,6 @@ func mapDistributionWithdrawDelegatorRewardToSub(msg sdk.Msg) (se structs.Subset
 }
 
 func mapDistributionFundCommunityPoolToSub(msg sdk.Msg) (se structs.SubsetEvent, er error) {
-
 	fcp, ok := msg.(distributiontypes.MsgFundCommunityPool)
 	if !ok {
 		return se, errors.New("Not a withdraw_validator_commission type")
@@ -115,7 +114,6 @@ func mapDistributionFundCommunityPoolToSub(msg sdk.Msg) (se structs.SubsetEvent,
 }
 
 func distributionProduceEvTx(account string, coins sdk.Coins) (evt structs.EventTransfer, err error) {
-
 	evt = structs.EventTransfer{
 		Account: structs.Account{ID: account},
 	}

@@ -5,15 +5,14 @@ import (
 
 	"github.com/figment-networks/indexer-manager/structs"
 
+	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/terra-project/core/types/util"
 	"github.com/terra-project/core/x/bank"
-	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/tendermint/tendermint/libs/bech32"
 )
 
 func mapBankMultisendToSub(msg sdk.Msg) (se structs.SubsetEvent, er error) {
-
 	multisend, ok := msg.(bank.MsgMultiSend)
 	if !ok {
 		return se, errors.New("Not a multisend type")
@@ -43,7 +42,6 @@ func mapBankMultisendToSub(msg sdk.Msg) (se structs.SubsetEvent, er error) {
 }
 
 func mapBankSendToSub(msg sdk.Msg) (se structs.SubsetEvent, er error) {
-
 	send, ok := msg.(bank.MsgSend)
 	if !ok {
 		return se, errors.New("Not a send type")
@@ -64,7 +62,6 @@ func mapBankSendToSub(msg sdk.Msg) (se structs.SubsetEvent, er error) {
 }
 
 func bankProduceEvTx(account sdk.AccAddress, coins sdk.Coins) (evt structs.EventTransfer, err error) {
-
 	bech32Addr := ""
 	if !account.Empty() {
 		bech32Addr, err = bech32.ConvertAndEncode(util.Bech32PrefixAccAddr, account.Bytes())
