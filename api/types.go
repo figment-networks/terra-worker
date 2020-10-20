@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"log"
 )
 
 // TxResponse is result of querying for a tx
@@ -73,7 +74,7 @@ type ResultTxSearch struct {
 
 // GetTxSearchResponse cosmos response for search
 type GetTxSearchResponse struct {
-	ID     string         `json:"id"`
+	//	ID     string         `json:"id"`
 	RPC    string         `json:"jsonrpc"`
 	Result ResultTxSearch `json:"result"`
 	Error  Error          `json:"error"`
@@ -109,14 +110,18 @@ func (lf *LogFormat) UnmarshalJSON(b []byte) error {
 	llf := &logFormat{}
 
 	if err := json.Unmarshal(b, llf); err != nil {
+		log.Println("error unmarshalling inner ")
 		return err
 	}
 
 	lf.MsgIndex = llf.MsgIndex
 	lf.Success = llf.Success
 	lf.Events = llf.Events
-
-	return json.Unmarshal([]byte(llf.Log), &lf.Log)
+	if llf.Log != "" {
+		log.Println("error unmarshalling inner (log) ")
+		return json.Unmarshal([]byte(llf.Log), &lf.Log)
+	}
+	return nil
 }
 
 type TxEvents struct {
@@ -155,6 +160,12 @@ type kvHolder struct {
 func (lea *TxEventsAttributes) UnmarshalJSON(b []byte) error {
 	dec := json.NewDecoder(bytes.NewReader(b))
 	kc := &kvHolder{}
+
+	// read open bracket
+	_, err := dec.Token()
+	if err != nil {
+		return err
+	}
 
 	for dec.More() {
 		err := dec.Decode(kc)
@@ -200,5 +211,11 @@ func (lea *TxEventsAttributes) UnmarshalJSON(b []byte) error {
 			lea.Others[kc.Key] = append(k, kc.Value)
 		}
 	}
+	// read closing bracket
+	_, err = dec.Token()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }

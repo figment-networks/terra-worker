@@ -3,12 +3,14 @@ module github.com/figment-networks/terra-worker
 go 1.14
 
 require (
+	github.com/bearcherian/rollzap v1.0.2
 	github.com/cosmos/cosmos-sdk v0.39.1
-	github.com/figment-networks/indexer-manager v0.0.0-00010101000000-000000000000
+	github.com/figment-networks/indexer-manager v0.0.2-0.20201016170609-7df9976bb036
 	github.com/figment-networks/indexing-engine v0.1.11
 	github.com/golang/mock v1.4.4
 	github.com/google/uuid v1.1.2
 	github.com/kelseyhightower/envconfig v1.4.0
+	github.com/rollbar/rollbar-go v1.2.0
 	github.com/tendermint/go-amino v0.16.0
 	github.com/tendermint/tendermint v0.33.8
 	github.com/terra-project/core v0.4.0
@@ -18,5 +20,3 @@ require (
 )
 
 replace github.com/CosmWasm/go-cosmwasm => github.com/terra-project/go-cosmwasm v0.10.1-terra
-
-replace github.com/figment-networks/indexer-manager => ../indexer-manager

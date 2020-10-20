@@ -8,6 +8,13 @@ import (
 	"github.com/kelseyhightower/envconfig"
 )
 
+var (
+	Name      = "terra-worker"
+	Version   string
+	GitSHA    string
+	Timestamp string
+)
+
 const (
 	modeDevelopment = "development"
 	modeProduction  = "production"
@@ -32,6 +39,10 @@ type Config struct {
 	MaximumHeightsToGet float64 `json:"maximum_heights_to_get" envconfig:"MAXIMUM_HEIGHTS_TO_GET" default:"10000"`
 	BigPage             float64 `json:"big_page" envconfig:"BIG_PAGE" default:"1000"`
 	RequestsPerSecond   int64   `json:"requests_per_second" envconfig:"REQUESTS_PER_SECOND" default:"33"`
+
+	// Rollbar
+	RollbarAccessToken string `json:"rollbar_access_token" envconfig:"ROLLBAR_ACCESS_TOKEN"`
+	RollbarServerRoot  string `json:"rollbar_server_root" envconfig:"ROLLBAR_SERVER_ROOT" default:"github.com/figment-networks/terra-worker"`
 }
 
 // FromFile reads the config from a file

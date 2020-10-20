@@ -16,8 +16,8 @@ import (
 	"github.com/figment-networks/indexing-engine/metrics"
 
 	"github.com/figment-networks/indexer-manager/structs"
-	"github.com/figment-networks/terra-worker/api"
 	cStructs "github.com/figment-networks/indexer-manager/worker/connectivity/structs"
+	"github.com/figment-networks/terra-worker/api"
 )
 
 //go:generate mockgen -destination=./mocks/mock_client.go -package=mocks -imports github.com/tendermint/go-amino github.com/figment-networks/terra-worker/client Api
@@ -161,6 +161,8 @@ func (ic *IndexerClient) GetTransactions(ctx context.Context, tr cStructs.TaskRe
 		hrInner := structs.HeightRange{
 			StartHeight: hr.StartHeight + i*uint64(ic.bigPage),
 			EndHeight:   hr.StartHeight + i*uint64(ic.bigPage) + uint64(ic.bigPage) - 1,
+			Network:     hr.Network,
+			ChainID:     hr.ChainID,
 		}
 		if hrInner.EndHeight > hr.EndHeight {
 			hrInner.EndHeight = hr.EndHeight
@@ -277,7 +279,10 @@ func (ic *IndexerClient) GetLatest(ctx context.Context, tr cStructs.TaskRequest,
 	blocksAll := &api.BlocksMap{Blocks: map[uint64]structs.Block{}}
 
 	// get latest blocks
-	client.GetBlocksMeta(sCtx, structs.HeightRange{}, blockchainEndpointLimit, blocksAll, batchesCtrl)
+	client.GetBlocksMeta(sCtx, structs.HeightRange{
+		Network: ldr.Network,
+		ChainID: ldr.ChainID,
+	}, blockchainEndpointLimit, blocksAll, batchesCtrl)
 
 	if err := <-batchesCtrl; err != nil {
 		stream.Send(cStructs.TaskResponse{
@@ -295,6 +300,8 @@ func (ic *IndexerClient) GetLatest(ctx context.Context, tr cStructs.TaskRequest,
 			bhr := structs.HeightRange{
 				StartHeight: startingHeight + i*uint64(blockchainEndpointLimit),
 				EndHeight:   startingHeight + i*uint64(blockchainEndpointLimit) + uint64(blockchainEndpointLimit) - 1,
+				Network:     ldr.Network,
+				ChainID:     ldr.ChainID,
 			}
 
 			if bhr.EndHeight > blocksAll.StartHeight {
@@ -386,6 +393,7 @@ func (ic *IndexerClient) GetLatest(ctx context.Context, tr cStructs.TaskRequest,
 
 }
 
+/*
 // getRange gets given range of blocks and transactions
 func getRange(ctx context.Context, logger *zap.Logger, client *api.Client, hr structs.HeightRange, out chan cStructs.OutResp) error {
 	defer logger.Sync()
@@ -464,7 +472,7 @@ func getRange(ctx context.Context, logger *zap.Logger, client *api.Client, hr st
 
 	return nil
 }
-
+*/
 // getRange gets given range of blocks and transactions
 func getRangeSingular(ctx context.Context, logger *zap.Logger, client Api, hr structs.HeightRange, out chan cStructs.OutResp) error {
 	defer logger.Sync()
@@ -478,6 +486,8 @@ func getRangeSingular(ctx context.Context, logger *zap.Logger, client Api, hr st
 		bhr := structs.HeightRange{
 			StartHeight: hr.StartHeight + i*uint64(blockchainEndpointLimit),
 			EndHeight:   hr.StartHeight + i*uint64(blockchainEndpointLimit) + uint64(blockchainEndpointLimit) - 1,
+			Network:     hr.Network,
+			ChainID:     hr.ChainID,
 		}
 
 		if bhr.EndHeight > hr.EndHeight {

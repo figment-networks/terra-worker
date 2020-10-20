@@ -15,16 +15,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/figment-networks/indexing-engine/metrics"
 	"github.com/figment-networks/indexer-manager/structs"
 	cStruct "github.com/figment-networks/indexer-manager/worker/connectivity/structs"
+	"github.com/figment-networks/indexing-engine/metrics"
 
-	"github.com/terra-project/core/x/auth"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	amino "github.com/tendermint/go-amino"
+	"github.com/terra-project/core/x/auth"
 
 	"go.uber.org/zap"
-
 )
 
 // TxLogError Error message
@@ -37,7 +36,7 @@ type TxLogError struct {
 var curencyRegex = regexp.MustCompile("([0-9\\.\\,\\-]+)[\\s]*([^0-9\\s]+)$")
 
 // SearchTx is making search api call
-func (c *Client) SearchTx(ctx context.Context, r structs.HeightRange, blocks map[uint64]structs.Block, out chan cStruct.OutResp, page, perPage int, fin chan string) {
+func (c *Client) SearchTx(ctx context.Context, r structs.HeightRange, chain_id string, blocks map[uint64]structs.Block, out chan cStruct.OutResp, page, perPage int, fin chan string) {
 	defer c.logger.Sync()
 
 	req, err := http.NewRequest(http.MethodGet, c.baseURL+"/tx_search", nil)
@@ -149,10 +148,9 @@ func RawToTransaction(logger *zap.Logger, cdc *amino.Codec, in []TxResponse, blo
 		txErr := TxLogError{}
 		err := dec.Decode(&lf)
 		if err != nil {
-			// (lukanus): Try to fallback to known error format
-			readr.Reset(txRaw.TxResult.Log)
-			if errin := dec.Decode(&txErr); errin != nil {
-				return fmt.Errorf("problem decoding raw transaction (json), %w", err)
+			if err != nil {
+				// (lukanus): Try to fallback to known error format
+				txErr.Message = txRaw.TxResult.Log
 			}
 		}
 
@@ -171,19 +169,17 @@ func RawToTransactionCh(logger *zap.Logger, cdc *amino.Codec, wg *sync.WaitGroup
 	dec := json.NewDecoder(readr)
 	defer wg.Done()
 	for txRaw := range in {
-		readr.Reset(txRaw.TxResult.Log)
 		lf := []LogFormat{}
 		txErr := TxLogError{}
-		err := dec.Decode(&lf)
-		if err != nil {
-			// (lukanus): Try to fallback to known error format
+		if txRaw.TxResult.Log != "" {
 			readr.Reset(txRaw.TxResult.Log)
-			if errin := dec.Decode(&txErr); errin != nil {
-				logger.Error("[TERRA-API] Problem decoding raw transaction (json)", zap.Error(err), zap.String("content_log", txRaw.TxResult.Log), zap.Any("content", txRaw))
-				continue
+
+			err := dec.Decode(&lf)
+			if err != nil {
+				// (lukanus): Try to fallback to known error format
+				txErr.Message = txRaw.TxResult.Log
 			}
 		}
-
 		tx, err := rawToTransaction(logger, cdc, txRaw, lf, txErr, blocks)
 		if err != nil {
 			logger.Error("[TERRA-API] Problem decoding raw transaction", zap.Error(err), zap.String("height", txRaw.Height), zap.String("hash", txRaw.Hash))
@@ -262,43 +258,41 @@ func rawToTransaction(logger *zap.Logger, cdc *amino.Codec, txRaw TxResponse, tx
 
 		if err != nil {
 			logger.Error("[TERRA-API] Problem decoding transaction ", zap.Error(err), zap.Uint64("height", trans.Height), zap.String("type", msg.Type()), zap.String("route", msg.Route()))
+			continue
 		}
 
-		presentIndexes[tev.ID] = true
 		trans.Events = append(trans.Events, tev)
+		// (lukanus): set this only for successfull
+		presentIndexes[tev.ID] = true
 	}
 
-	for i, logf := range txLog {
+	for _, logf := range txLog {
 		msgIndex := strconv.FormatFloat(logf.MsgIndex, 'f', -1, 64)
-		_, ok := presentIndexes[msgIndex]
-
-		if ok {
-
-		} else {
-			eventFromLogs(lf)
+		if _, ok := presentIndexes[msgIndex]; ok {
+			continue
 		}
 
+		tev := eventFromLogs(logf)
+
+		// (lukanus): if call was an error append error message from the log
 		if !logf.Success {
-			var tev structs.TransactionEvent
-			if len(trans.Events) >= i+1 {
-				tev = trans.Events[i]
-			} else if len(trans.Events) == 0 {
-			} else { // (lukanus): if we cannot assign error by messages assign error to the very first
-				tev = trans.Events[0]
+			subsError := &structs.SubsetEventError{
+				Message: logf.Log.Message,
 			}
 
 			if len(tev.Sub) > 0 {
-				sub := tev.Sub[0]
-				if sub.Error == nil {
-					sub.Error = &structs.SubsetEventError{
-						Message: logf.Log.Message,
-					}
+				if tev.Sub[0].Error == nil { // do not overwrite
+					tev.Sub[0].Error = subsError
 				}
+			} else {
+				tev.Sub = append(tev.Sub, structs.SubsetEvent{Error: subsError})
 			}
 
 		}
 
+		trans.Events = append(trans.Events, tev)
 	}
+
 	if txErr.Message != "" {
 		tev := structs.TransactionEvent{
 			Kind: "error",
@@ -315,18 +309,35 @@ func rawToTransaction(logger *zap.Logger, cdc *amino.Codec, txRaw TxResponse, tx
 	return outTX, nil
 }
 
-func eventFromLogs(lf logFormat) structs.TransactionEvent {
+func eventFromLogs(lf LogFormat) structs.TransactionEvent {
 
 	te := structs.TransactionEvent{
 		ID: strconv.FormatFloat(lf.MsgIndex, 'f', -1, 64),
 	}
 
 	for _, ev := range lf.Events {
-		sub := structs.SubsetEvent{
-			Type:   []string{ev.Attributes.Action},
-			Module: ev.Attributes.Module,
+		if ev.Attributes != nil {
+			sub := structs.SubsetEvent{
+				Type:   []string{ev.Attributes.Action},
+				Module: ev.Attributes.Module,
+			}
+			if len(ev.Attributes.Sender) > 0 {
+				for _, s := range ev.Attributes.Sender {
+					sub.Sender = append(sub.Sender, structs.EventTransfer{
+						Account: structs.Account{ID: s},
+					})
+				}
+			}
+
+			if len(ev.Attributes.Recipient) > 0 {
+				for _, r := range ev.Attributes.Recipient {
+					sub.Recipient = append(sub.Recipient, structs.EventTransfer{
+						Account: structs.Account{ID: r},
+					})
+				}
+			}
+			te.Sub = append(te.Sub, sub)
 		}
-		te.Sub = append(te.Sub, sub)
 	}
 
 	return te
@@ -462,7 +473,6 @@ func (c *Client) SingularHeightWorker(ctx context.Context, wg *sync.WaitGroup, o
 	defer wg.Done()
 
 	for current := range in {
-		//c.logger.Debug("[TERRA-API] Getting transaction for data ", zap.Uint64("height", current.Height), zap.Int("page", current.Page))
 		resp, err := c.SearchTxSingularHeight(ctx, current.Height, current.Page, current.PerPage)
 		if err != nil {
 			c.logger.Error("[TERRA-API] Getting response from SearchTX", zap.Error(err), zap.Uint64("height", current.Height))
@@ -510,7 +520,6 @@ func (c *Client) SearchTxSingularHeight(ctx context.Context, height uint64, page
 	now := time.Now()
 	resp, err := c.httpClient.Do(req)
 
-	// c.logger.Debug("[TERRA-API] Request Time (/tx_search)", zap.Duration("duration", time.Now().Sub(now)))
 	if err != nil {
 		return txSearch, err
 	}

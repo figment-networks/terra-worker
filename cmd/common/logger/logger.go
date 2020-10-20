@@ -3,6 +3,9 @@ package logger
 import (
 	"strings"
 
+	"github.com/bearcherian/rollzap"
+	"github.com/rollbar/rollbar-go"
+
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -10,6 +13,14 @@ import (
 var (
 	Log Logger
 )
+
+type RollbarConfig struct {
+	RollbarAccessToken string
+	RollbarServerRoot  string
+	AppEnv             string
+	Version            string
+	ChainIDs           []string
+}
 
 type Logger struct {
 	*zap.Logger
@@ -19,7 +30,7 @@ func GetLogger() *zap.Logger {
 	return Log.Logger
 }
 
-func Init(encoding, logLevel string, logOutputs []string) error {
+func Init(encoding, logLevel string, logOutputs []string, rollbarConfig *RollbarConfig) error {
 	logConfig := zap.Config{
 		OutputPaths: logOutputs,
 		Encoding:    "json",
@@ -38,6 +49,23 @@ func Init(encoding, logLevel string, logOutputs []string) error {
 	log, err := logConfig.Build()
 	if err != nil {
 		return err
+	}
+
+	if rollbarConfig != nil && rollbarConfig.RollbarAccessToken != "" {
+		rollbar.SetToken(rollbarConfig.RollbarAccessToken)
+		rollbar.SetEnvironment(rollbarConfig.AppEnv)
+		rollbar.SetServerRoot(rollbarConfig.RollbarServerRoot)
+		rollbar.SetCodeVersion(rollbarConfig.Version)
+		rollbar.SetCustom(map[string]interface{}{"chainIDs": rollbarConfig.ChainIDs})
+
+		log.Info("Enabling rollbar integration", zap.String("env", rollbarConfig.AppEnv), zap.String("server_root", rollbarConfig.RollbarServerRoot), zap.String("access_token", rollbarConfig.RollbarAccessToken[0:5]))
+		// create a new core that sends zapcore.ErrorLevel and above messages to Rollbar
+		rollbarCore := rollzap.NewRollbarCore(zapcore.ErrorLevel)
+
+		// Wrap a NewTee to send log messages to both your main logger and to rollbar
+		log = log.WithOptions(zap.WrapCore(func(core zapcore.Core) zapcore.Core {
+			return zapcore.NewTee(core, rollbarCore)
+		}))
 	}
 
 	Log.Logger = log

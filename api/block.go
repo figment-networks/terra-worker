@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"sync"
@@ -30,7 +31,6 @@ func (c Client) GetBlocksMeta(ctx context.Context, params structs.HeightRange, l
 		return
 	}
 
-	req.Header.Add("Content-Type", "application/json")
 	if c.key != "" {
 		req.Header.Add("Authorization", c.key)
 	}
@@ -67,20 +67,36 @@ func (c Client) GetBlocksMeta(ctx context.Context, params structs.HeightRange, l
 	rawRequestDuration.WithLabels("/blockchain", resp.Status).Observe(time.Since(n).Seconds())
 	defer resp.Body.Close()
 
-	decoder := json.NewDecoder(resp.Body)
+	if params.ChainID == "columbus-4" {
+		if err := decodeBlocksColumbus4(resp.Body, blocks); err != nil {
+			end <- err
+			return
+		}
+	} else {
+		if err := decodeBlocksColumbus3(resp.Body, blocks); err != nil {
+			end <- err
+			return
+		}
+	}
+
+	end <- nil
+	return
+}
+
+func decodeBlocksColumbus3(respBody io.ReadCloser, blocks *BlocksMap) (err error) {
+	decoder := json.NewDecoder(respBody)
 
 	var result *GetBlockchainResponse
-	if err = decoder.Decode(&result); err != nil {
-		end <- err
-		return
+	if err := decoder.Decode(&result); err != nil {
+		return err
 	}
 
 	if result.Error.Message != "" {
-		end <- fmt.Errorf("error fetching block: %s ", result.Error.Message)
-		return
+		return fmt.Errorf("error fetching block: %s ", result.Error.Message)
 	}
 
 	blocks.Lock()
+	defer blocks.Unlock()
 	for _, meta := range result.Result.BlockMetas {
 
 		bTime, _ := time.Parse(time.RFC3339Nano, meta.Header.Time)
@@ -101,11 +117,48 @@ func (c Client) GetBlocksMeta(ctx context.Context, params structs.HeightRange, l
 		if blocks.EndHeight == 0 || blocks.EndHeight < block.Height {
 			blocks.EndHeight = block.Height
 		}
+		blocks.Blocks[block.Height] = block
+	}
+
+	return
+}
+
+func decodeBlocksColumbus4(respBody io.ReadCloser, blocks *BlocksMap) (err error) {
+	decoder := json.NewDecoder(respBody)
+
+	var result *GetBlockchainResponseV4
+	if err := decoder.Decode(&result); err != nil {
+		return err
+	}
+
+	if result.Error.Message != "" {
+		return fmt.Errorf("error fetching block: %s ", result.Error.Message)
+	}
+
+	blocks.Lock()
+	defer blocks.Unlock()
+	for _, meta := range result.Result.BlockMetas {
+
+		bTime, _ := time.Parse(time.RFC3339Nano, meta.Header.Time)
+		uHeight, _ := strconv.ParseUint(meta.Header.Height, 10, 64)
+		numTxs, _ := strconv.ParseUint(meta.NumTxs, 10, 64)
+
+		block := structs.Block{
+			Hash:                 meta.BlockID.Hash,
+			Height:               uHeight,
+			ChainID:              meta.Header.ChainID,
+			Time:                 bTime,
+			NumberOfTransactions: numTxs,
+		}
+		blocks.NumTxs += numTxs
+		if blocks.StartHeight == 0 || blocks.StartHeight > block.Height {
+			blocks.StartHeight = block.Height
+		}
+		if blocks.EndHeight == 0 || blocks.EndHeight < block.Height {
+			blocks.EndHeight = block.Height
+		}
 
 		blocks.Blocks[block.Height] = block
 	}
-	blocks.Unlock()
-
-	end <- nil
 	return
 }
