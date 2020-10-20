@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"strconv"
 	"sync"
@@ -64,8 +65,15 @@ func (c Client) GetBlocksMeta(ctx context.Context, params structs.HeightRange, l
 		end <- err
 		return
 	}
+
 	rawRequestDuration.WithLabels("/blockchain", resp.Status).Observe(time.Since(n).Seconds())
 	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 { // (lukanus): for Datahub errors
+		allBody, _ := ioutil.ReadAll(resp.Body)
+		end <- fmt.Errorf("Bad Response %d (%s)", resp.StatusCode, string(allBody))
+		return
+	}
 
 	if params.ChainID == "columbus-4" {
 		if err := decodeBlocksColumbus4(resp.Body, blocks); err != nil {
