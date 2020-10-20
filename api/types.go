@@ -3,7 +3,6 @@ package api
 import (
 	"bytes"
 	"encoding/json"
-	"log"
 )
 
 // TxResponse is result of querying for a tx
@@ -110,7 +109,6 @@ func (lf *LogFormat) UnmarshalJSON(b []byte) error {
 	llf := &logFormat{}
 
 	if err := json.Unmarshal(b, llf); err != nil {
-		log.Println("error unmarshalling inner ")
 		return err
 	}
 
@@ -118,7 +116,6 @@ func (lf *LogFormat) UnmarshalJSON(b []byte) error {
 	lf.Success = llf.Success
 	lf.Events = llf.Events
 	if llf.Log != "" {
-		log.Println("error unmarshalling inner (log) ")
 		return json.Unmarshal([]byte(llf.Log), &lf.Log)
 	}
 	return nil

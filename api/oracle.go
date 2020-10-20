@@ -3,12 +3,12 @@ package api
 import (
 	"errors"
 	"math/big"
+	"strings"
 
 	"github.com/figment-networks/indexer-manager/structs"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/tendermint/tendermint/libs/bech32"
-
 
 	"github.com/terra-project/core/types/util"
 	"github.com/terra-project/core/x/oracle"
@@ -40,10 +40,15 @@ func mapOracleExchangeRateVoteToSub(msg sdk.Msg) (se structs.SubsetEvent, err er
 	excRt := structs.TransactionAmount{
 		Currency: exrv.Denom,
 	}
+
+	// (lukanus): Saddly SDK int is not normal big.Int but weirdly formated one with enforced precision saved outside of the structure
+	// the safest way would be to convert that to string using library rules and then convert it back to regular big.Int
+	exchangeRateIntString := exrv.ExchangeRate.String()
+
 	if exrv.ExchangeRate.Int != nil {
 		excRt.Numeric = big.NewInt(0)
-		excRt.Numeric.Set(exrv.ExchangeRate.Int)
-
+		excRt.Numeric.SetString(exchangeRateIntString, 10)
+		excRt.Text = exchangeRateIntString
 	}
 	se.Amount = map[string]structs.TransactionAmount{"exchangeRate": excRt}
 
@@ -161,7 +166,7 @@ func mapOracleAggregateExchangeRateVoteToSub(msg sdk.Msg) (se structs.SubsetEven
 
 	se.Additional = map[string][]string{
 		"salt":          {exrv.Salt},
-		"exchangeRates": {exrv.ExchangeRates},
+		"exchangeRates": strings.Split(exrv.ExchangeRates, ","),
 	}
 	return se, nil
 }
