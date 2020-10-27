@@ -54,9 +54,17 @@ List of currently supporter transaction types in terra-worker are (listed by mod
     `submit_evidence`
 - gov:
     `deposit` , `vote` , `submit_proposal`
+- market:
+    `swap` , `swapsend`
+- msgauth:
+    `grant_authorization` , `revoke_authorization` , `exec_delegated`
+- oracle:
+    `exchangeratevote` , `exchangerateprevote` , `delegatefeeder` , `aggregateexchangerateprevote` , `aggregateexchangeratevote`
 - slashing:
     `unjail`
 - staking:
     `begin_unbonding` , `edit_validator` , `create_validator` , `delegate` , `begin_redelegate`
+- wasm:
+    `execute_contract`, `store_code`, `update_contract_owner` , `instantiate_contract` , `migrate_contract`
 - internal:
     `error`
