@@ -148,6 +148,7 @@ func RawToTransaction(logger *zap.Logger, cdc *amino.Codec, in []TxResponse, blo
 		txErr := TxLogError{}
 		err := dec.Decode(&lf)
 		if err != nil {
+			dec = json.NewDecoder(readr) // (lukanus): reassign decoder in case of failure
 			if err != nil {
 				// (lukanus): Try to fallback to known error format
 				txErr.Message = txRaw.TxResult.Log
@@ -168,14 +169,15 @@ func RawToTransactionCh(logger *zap.Logger, cdc *amino.Codec, wg *sync.WaitGroup
 	readr := strings.NewReader("")
 	dec := json.NewDecoder(readr)
 	defer wg.Done()
+	var err error
 	for txRaw := range in {
 		lf := []LogFormat{}
 		txErr := TxLogError{}
 		if txRaw.TxResult.Log != "" {
 			readr.Reset(txRaw.TxResult.Log)
+			if err = dec.Decode(&lf); err != nil {
+				dec = json.NewDecoder(readr) // (lukanus): reassign decoder in case of failure
 
-			err := dec.Decode(&lf)
-			if err != nil {
 				// (lukanus): Try to fallback to known error format
 				txErr.Message = txRaw.TxResult.Log
 			}
