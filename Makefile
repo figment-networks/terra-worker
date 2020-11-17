@@ -17,6 +17,10 @@ all: generate pack-release
 generate:
 	go generate ./...
 
+.PHONY: plugin
+plugin:
+	CGO_ENABLED="1" go build -trimpath -o converter-plugin.so -buildmode=plugin ./cmd/converter-plugin
+
 .PHONY: build
 build: LDFLAGS += -X $(MODULE)/cmd/terra-worker/config.Timestamp=$(shell date +%s)
 build: LDFLAGS += -X $(MODULE)/cmd/terra-worker/config.Version=$(VERSION)
