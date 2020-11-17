@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math/big"
 	"net/http"
@@ -146,13 +147,10 @@ func RawToTransaction(logger *zap.Logger, cdc *amino.Codec, in []TxResponse, blo
 		readr.Reset(txRaw.TxResult.Log)
 		lf := []LogFormat{}
 		txErr := TxLogError{}
-		err := dec.Decode(&lf)
-		if err != nil {
+		if err := dec.Decode(&lf); err != nil {
+			// (lukanus): Try to fallback to known error format
 			dec = json.NewDecoder(readr) // (lukanus): reassign decoder in case of failure
-			if err != nil {
-				// (lukanus): Try to fallback to known error format
-				txErr.Message = txRaw.TxResult.Log
-			}
+			txErr.Message = txRaw.TxResult.Log
 		}
 
 		tx, err := rawToTransaction(logger, cdc, txRaw, lf, txErr, blocks)
@@ -577,4 +575,23 @@ func getCoin(s string) (number *big.Int, exp int32, err error) {
 	}
 
 	return number, 0, errors.New("Impossible to parse ")
+}
+
+// GetFromRaw returns raw data for plugin use;
+func (c *Client) GetFromRaw(logger *zap.Logger, txReader io.Reader) []map[string]interface{} {
+	tx := &auth.StdTx{}
+	base64Dec := base64.NewDecoder(base64.StdEncoding, txReader)
+	_, err := c.cdc.UnmarshalBinaryLengthPrefixedReader(base64Dec, tx, 0)
+	if err != nil {
+		logger.Error("[TERRA-API] Problem decoding raw transaction (cdc) ", zap.Error(err))
+	}
+	slice := []map[string]interface{}{}
+	for _, coin := range tx.Fee.Amount {
+		slice = append(slice, map[string]interface{}{
+			"text":     coin.Amount.String(),
+			"numeric":  coin.Amount.BigInt(),
+			"currency": coin.Denom,
+		})
+	}
+	return slice
 }
