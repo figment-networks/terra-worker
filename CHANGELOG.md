@@ -1,6 +1,6 @@
 # Change Log
 
-## [0.0.3] -
+## [0.0.3] - 2020-11-17
 
 ### Added
 - Plugin from populator that adds ability for parse the fee from raw transaction
