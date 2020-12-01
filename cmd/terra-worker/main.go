@@ -116,6 +116,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	attachProfiling(mux)
+	attachDynamic(ctx, mux)
 
 	mux.Handle("/metrics", metrics.Handler())
 
