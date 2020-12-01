@@ -235,6 +235,10 @@ func rawToTransaction(logger *zap.Logger, cdc *amino.Codec, txRaw TxResponse, tx
 	trans.Raw = make([]byte, txReader.Len())
 	txReader.Read(trans.Raw)
 
+	txLogReader := strings.NewReader(txRaw.TxResult.Log)
+	trans.RawLog = make([]byte, txLogReader.Len())
+	txLogReader.Read(trans.RawLog)
+
 	for _, coin := range tx.Fee.Amount {
 		trans.Fee = append(trans.Fee, structs.TransactionAmount{
 			Text:     coin.Amount.String(),

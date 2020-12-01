@@ -24,6 +24,11 @@ type RollbarConfig struct {
 
 type Logger struct {
 	*zap.Logger
+	Level zap.AtomicLevel
+}
+
+func SetLevel(logLevel string) {
+	Log.Level.SetLevel(getLevel(logLevel))
 }
 
 func GetLogger() *zap.Logger {

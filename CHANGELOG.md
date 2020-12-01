@@ -1,5 +1,13 @@
 # Change Log
 
+## [0.0.4] -
+
+### Added
+- Ability to change log level on the flight using http endpoint
+- Added transaction log field to returned structure
+### Changed
+### Fixed
+
 ## [0.0.3] - 2020-11-17
 
 ### Added
