@@ -439,15 +439,15 @@ func getSubEvent(msg sdk.Msg, lf LogFormat) (se structs.SubsetEvent, err error) 
 	case "staking":
 		switch msg.Type() {
 		case "begin_unbonding":
-			return mapStakingUndelegateToSub(msg)
+			return mapStakingUndelegateToSub(msg, lf)
 		case "edit_validator":
 			return mapStakingEditValidatorToSub(msg)
 		case "create_validator":
 			return mapStakingCreateValidatorToSub(msg)
 		case "delegate":
-			return mapStakingDelegateToSub(msg)
+			return mapStakingDelegateToSub(msg, lf)
 		case "begin_redelegate":
-			return mapStakingBeginRedelegateToSub(msg)
+			return mapStakingBeginRedelegateToSub(msg, lf)
 		}
 	case "wasm":
 		switch msg.Type() {
@@ -600,23 +600,21 @@ func (c *Client) GetFromRaw(logger *zap.Logger, txReader io.Reader) []map[string
 	return slice
 }
 
-func produceTransfers(se *structs.SubsetEvent, transferType string, logf LogFormat) (err error) {
+func produceTransfers(se *structs.SubsetEvent, transferType, skipAddr string, logf LogFormat) (err error) {
 	var evts []structs.EventTransfer
 	m := make(map[string][]structs.TransactionAmount)
 	for _, ev := range logf.Events {
 		if ev.Type != "transfer" {
 			continue
 		}
-
-		var latestRecipient string
 		attr := ev.Attributes
-		if len(attr.Recipient) > 0 {
-			latestRecipient = attr.Recipient[0]
-		}
 
-		for _, amount := range attr.Amount {
+		for i, recip := range attr.Recipient {
+			if recip == skipAddr || len(attr.Amount) < i {
+				continue
+			}
 			// (pacmessica): split amount because it may contain multiple amounts, eg. from logs `"value": "2896ukrw,16uluna,1umnt"`
-			amounts := strings.Split(amount, ",")
+			amounts := strings.Split(attr.Amount[i], ",")
 			for _, amt := range amounts {
 				attrAmt := structs.TransactionAmount{Numeric: &big.Int{}}
 
@@ -640,7 +638,7 @@ func produceTransfers(se *structs.SubsetEvent, transferType string, logf LogForm
 				attrAmt.Exp = exp
 				attrAmt.Numeric.Set(c)
 
-				m[latestRecipient] = append(m[latestRecipient], attrAmt)
+				m[recip] = append(m[recip], attrAmt)
 			}
 		}
 	}

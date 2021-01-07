@@ -35,7 +35,7 @@ func mapDistributionWithdrawValidatorCommissionToSub(msg sdk.Msg, logf LogFormat
 		}},
 	}
 
-	err = produceTransfers(&se, "send", logf)
+	err = produceTransfers(&se, "send", "", logf)
 	return se, err
 }
 
@@ -92,7 +92,7 @@ func mapDistributionWithdrawDelegatorRewardToSub(msg sdk.Msg, logf LogFormat) (s
 		}},
 	}
 
-	err = produceTransfers(&se, "reward", logf)
+	err = produceTransfers(&se, "reward", "", logf)
 	return se, err
 }
 

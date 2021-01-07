@@ -9,13 +9,15 @@ import (
 	"github.com/terra-project/core/x/staking"
 )
 
-func mapStakingUndelegateToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
+const unbondedTokensPoolAddr = "terra1tygms3xhhs3yv487phx3dw4a95jn7t7l8l07dr"
+
+func mapStakingUndelegateToSub(msg sdk.Msg, logf LogFormat) (se structs.SubsetEvent, err error) {
 	u, ok := msg.(staking.MsgUndelegate)
 	if !ok {
 		return se, errors.New("Not a begin_unbonding type")
 	}
 
-	return structs.SubsetEvent{
+	se = structs.SubsetEvent{
 		Type:   []string{"begin_unbonding"},
 		Module: "staking",
 		Node: map[string][]structs.Account{
@@ -29,15 +31,18 @@ func mapStakingUndelegateToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) 
 				Text:     u.Amount.String(),
 			},
 		},
-	}, err
+	}
+
+	err = produceTransfers(&se, "reward", unbondedTokensPoolAddr, logf)
+	return se, err
 }
 
-func mapStakingDelegateToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
+func mapStakingDelegateToSub(msg sdk.Msg, logf LogFormat) (se structs.SubsetEvent, err error) {
 	d, ok := msg.(staking.MsgDelegate)
 	if !ok {
 		return se, errors.New("Not a delegate type")
 	}
-	return structs.SubsetEvent{
+	se = structs.SubsetEvent{
 		Type:   []string{"delegate"},
 		Module: "staking",
 		Node: map[string][]structs.Account{
@@ -51,16 +56,19 @@ func mapStakingDelegateToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
 				Text:     d.Amount.String(),
 			},
 		},
-	}, err
+	}
+
+	err = produceTransfers(&se, "reward", "", logf)
+	return se, err
 }
 
-func mapStakingBeginRedelegateToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
+func mapStakingBeginRedelegateToSub(msg sdk.Msg, logf LogFormat) (se structs.SubsetEvent, err error) {
 	br, ok := msg.(staking.MsgBeginRedelegate)
 	if !ok {
 		return se, errors.New("Not a begin_redelegate type")
 	}
 
-	return structs.SubsetEvent{
+	se = structs.SubsetEvent{
 		Type:   []string{"begin_redelegate"},
 		Module: "staking",
 		Node: map[string][]structs.Account{
@@ -75,7 +83,10 @@ func mapStakingBeginRedelegateToSub(msg sdk.Msg) (se structs.SubsetEvent, err er
 				Text:     br.Amount.String(),
 			},
 		},
-	}, err
+	}
+
+	err = produceTransfers(&se, "reward", "", logf)
+	return se, err
 }
 
 func mapStakingCreateValidatorToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
