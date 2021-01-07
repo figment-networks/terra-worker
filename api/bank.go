@@ -12,7 +12,7 @@ import (
 	"github.com/tendermint/tendermint/libs/bech32"
 )
 
-func mapBankMultisendToSub(msg sdk.Msg) (se structs.SubsetEvent, er error) {
+func mapBankMultisendToSub(msg sdk.Msg, logf LogFormat) (se structs.SubsetEvent, err error) {
 	multisend, ok := msg.(bank.MsgMultiSend)
 	if !ok {
 		return se, errors.New("Not a multisend type")
@@ -38,10 +38,11 @@ func mapBankMultisendToSub(msg sdk.Msg) (se structs.SubsetEvent, er error) {
 		se.Recipient = append(se.Recipient, evt)
 	}
 
-	return se, nil
+	err = produceTransfers(&se, "send", "", logf)
+	return se, err
 }
 
-func mapBankSendToSub(msg sdk.Msg) (se structs.SubsetEvent, er error) {
+func mapBankSendToSub(msg sdk.Msg, logf LogFormat) (se structs.SubsetEvent, err error) {
 	send, ok := msg.(bank.MsgSend)
 	if !ok {
 		return se, errors.New("Not a send type")
@@ -58,7 +59,8 @@ func mapBankSendToSub(msg sdk.Msg) (se structs.SubsetEvent, er error) {
 	evt, _ = bankProduceEvTx(send.ToAddress, send.Amount)
 	se.Recipient = append(se.Recipient, evt)
 
-	return se, nil
+	err = produceTransfers(&se, "send", "", logf)
+	return se, err
 }
 
 func bankProduceEvTx(account sdk.AccAddress, coins sdk.Coins) (evt structs.EventTransfer, err error) {
