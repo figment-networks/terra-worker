@@ -356,9 +356,9 @@ func getSubEvent(msg sdk.Msg, lf LogFormat) (se structs.SubsetEvent, err error) 
 	case "bank":
 		switch msg.Type() {
 		case "multisend":
-			return mapBankMultisendToSub(msg)
+			return mapBankMultisendToSub(msg, lf)
 		case "send":
-			return mapBankSendToSub(msg)
+			return mapBankSendToSub(msg, lf)
 		}
 	case "crisis":
 		switch msg.Type() {
@@ -384,18 +384,18 @@ func getSubEvent(msg sdk.Msg, lf LogFormat) (se structs.SubsetEvent, err error) 
 	case "gov":
 		switch msg.Type() {
 		case "deposit":
-			return mapGovDepositToSub(msg)
+			return mapGovDepositToSub(msg, lf)
 		case "vote":
 			return mapGovVoteToSub(msg)
 		case "submit_proposal":
-			return mapGovSubmitProposalToSub(msg)
+			return mapGovSubmitProposalToSub(msg, lf)
 		}
 	case "market":
 		switch msg.Type() {
 		case "swap":
-			return mapMarketSwapToSub(msg)
+			return mapMarketSwapToSub(msg, lf)
 		case "swapsend":
-			return mapMarketSwapSendToSub(msg)
+			return mapMarketSwapSendToSub(msg, lf)
 		}
 	case "msgauth":
 		switch msg.Type() {
