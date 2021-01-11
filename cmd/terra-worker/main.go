@@ -108,8 +108,9 @@ func main() {
 
 	grpcServer := grpc.NewServer()
 
-	apiClient := api.NewClient(cfg.TerraRPCAddr, cfg.DatahubKey, logger.GetLogger(), nil, int(cfg.RequestsPerSecond))
-	workerClient := client.NewIndexerClient(ctx, logger.GetLogger(), apiClient, uint64(cfg.BigPage), uint64(cfg.MaximumHeightsToGet))
+	rpcClient := api.NewClient(cfg.TerraRPCAddr, cfg.DatahubKey, logger.GetLogger(), nil, int(cfg.RequestsPerSecond))
+	lcdClient := api.NewClient(cfg.TerraLCDAddr, cfg.DatahubKey, logger.GetLogger(), nil, int(cfg.RequestsPerSecond))
+	workerClient := client.NewIndexerClient(ctx, logger.GetLogger(), lcdClient, rpcClient, uint64(cfg.BigPage), uint64(cfg.MaximumHeightsToGet))
 
 	worker := grpcIndexer.NewIndexerServer(ctx, workerClient, logger.GetLogger())
 	grpcProtoIndexer.RegisterIndexerServiceServer(grpcServer, worker)

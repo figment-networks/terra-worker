@@ -11,14 +11,17 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	slashingCosmos "github.com/cosmos/cosmos-sdk/x/slashing"
 
-
-
-
 	"go.uber.org/zap"
 	"golang.org/x/time/rate"
 )
 
 var cdcA = amino.NewCodec()
+
+func init() {
+	sdk.RegisterCodec(cdcA)
+	slashingCosmos.RegisterCodec(cdcA)
+	auth.RegisterCodec(cdcA)
+}
 
 // Client is a Tendermint RPC client for cosmos using figmentnetworks datahub
 type Client struct {
@@ -40,13 +43,10 @@ func NewClient(url, key string, logger *zap.Logger, c *http.Client, reqPerSecLim
 	rateLimiter := rate.NewLimiter(rate.Limit(reqPerSecLimit), reqPerSecLimit)
 
 	cdc := app.MakeCodec()
-	sdk.RegisterCodec(cdcA)
-	slashingCosmos.RegisterCodec(cdcA)
-	auth.RegisterCodec(cdcA)
 
 	cli := &Client{
 		logger:      logger,
-		baseURL:     url, //tendermint rpc url
+		baseURL:     url, //tendermint rpc or terra lcd url
 		key:         key,
 		httpClient:  c,
 		rateLimiter: rateLimiter,

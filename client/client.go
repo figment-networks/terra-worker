@@ -20,7 +20,7 @@ import (
 	"github.com/figment-networks/terra-worker/api"
 )
 
-//go:generate mockgen -destination=./mocks/mock_client.go -package=mocks -imports github.com/tendermint/go-amino github.com/figment-networks/terra-worker/client Api
+//go:generate mockgen -destination=./mocks/mock_client.go -package=mocks -imports github.com/tendermint/go-amino github.com/figment-networks/terra-worker/client RPC
 
 const page = 100
 const blockchainEndpointLimit = 20
@@ -31,14 +31,18 @@ var (
 	getBlockDuration       *metrics.GroupObserver
 )
 
-type Api interface {
+type RPC interface {
 	CDC() *amino.Codec
 	SingularHeightWorker(ctx context.Context, wg *sync.WaitGroup, out chan api.TxResponse, in chan api.ToGet)
 	GetBlocksMeta(ctx context.Context, params structs.HeightRange, limit uint64, blocks *api.BlocksMap, end chan<- error)
 }
 
+type LCD interface {
+	GetReward(ctx context.Context, params structs.HeightAccount) (resp structs.GetRewardResponse, err error)
+}
 type IndexerClient struct {
-	cli Api
+	lcd LCD
+	rpc RPC
 
 	logger  *zap.Logger
 	streams map[uuid.UUID]*cStructs.StreamAccess
@@ -48,14 +52,15 @@ type IndexerClient struct {
 	maximumHeightsToGet uint64
 }
 
-func NewIndexerClient(ctx context.Context, logger *zap.Logger, tClient Api, bigPage, maximumHeightsToGet uint64) *IndexerClient {
+func NewIndexerClient(ctx context.Context, logger *zap.Logger, lcdCli LCD, rpcCli RPC, bigPage, maximumHeightsToGet uint64) *IndexerClient {
 	getTransactionDuration = endpointDuration.WithLabels("getTransactions")
 	getLatestDuration = endpointDuration.WithLabels("getLatest")
 	getBlockDuration = endpointDuration.WithLabels("getBlock")
 	api.InitMetrics()
 
 	return &IndexerClient{
-		cli:                 tClient,
+		rpc:                 rpcCli,
+		lcd:                 lcdCli,
 		logger:              logger,
 		bigPage:             bigPage,
 		maximumHeightsToGet: maximumHeightsToGet,
@@ -107,9 +112,11 @@ func (ic *IndexerClient) Run(ctx context.Context, stream *cStructs.StreamAccess)
 			nCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 			switch taskRequest.Type {
 			case structs.ReqIDGetTransactions:
-				ic.GetTransactions(nCtx, taskRequest, stream, ic.cli)
+				ic.GetTransactions(nCtx, taskRequest, stream, ic.rpc)
 			case structs.ReqIDLatestData:
-				ic.GetLatest(nCtx, taskRequest, stream, ic.cli)
+				ic.GetLatest(nCtx, taskRequest, stream, ic.rpc)
+			case structs.ReqIDGetReward:
+				ic.GetReward(nCtx, taskRequest, stream, ic.lcd)
 			default:
 				stream.Send(cStructs.TaskResponse{
 					Id:    taskRequest.Id,
@@ -123,7 +130,7 @@ func (ic *IndexerClient) Run(ctx context.Context, stream *cStructs.StreamAccess)
 
 }
 
-func (ic *IndexerClient) GetTransactions(ctx context.Context, tr cStructs.TaskRequest, stream *cStructs.StreamAccess, client Api) {
+func (ic *IndexerClient) GetTransactions(ctx context.Context, tr cStructs.TaskRequest, stream *cStructs.StreamAccess, client RPC) {
 	timer := metrics.NewTimer(getTransactionDuration)
 	defer timer.ObserveDuration()
 
@@ -261,7 +268,7 @@ SendLoop:
 
 // GetLatest gets latest transactions and blocks.
 // It gets latest transaction, then diff it with
-func (ic *IndexerClient) GetLatest(ctx context.Context, tr cStructs.TaskRequest, stream *cStructs.StreamAccess, client Api) {
+func (ic *IndexerClient) GetLatest(ctx context.Context, tr cStructs.TaskRequest, stream *cStructs.StreamAccess, client RPC) {
 	timer := metrics.NewTimer(getLatestDuration)
 	defer timer.ObserveDuration()
 
@@ -393,8 +400,49 @@ func (ic *IndexerClient) GetLatest(ctx context.Context, tr cStructs.TaskRequest,
 
 }
 
+// GetReward gets reward
+func (ic *IndexerClient) GetReward(ctx context.Context, tr cStructs.TaskRequest, stream *cStructs.StreamAccess, client LCD) {
+	timer := metrics.NewTimer(getBlockDuration)
+	defer timer.ObserveDuration()
+
+	ha := &structs.HeightAccount{}
+	err := json.Unmarshal(tr.Payload, ha)
+	if err != nil {
+		stream.Send(cStructs.TaskResponse{
+			Id:    tr.Id,
+			Error: cStructs.TaskError{Msg: "Cannot unmarshal payload"},
+			Final: true,
+		})
+		return
+	}
+
+	sCtx, cancel := context.WithTimeout(ctx, time.Second*2)
+	defer cancel()
+
+	reward, err := client.GetReward(sCtx, *ha)
+	if err != nil {
+		ic.logger.Error("Error getting reward", zap.Error(err))
+		stream.Send(cStructs.TaskResponse{
+			Id:    tr.Id,
+			Error: cStructs.TaskError{Msg: "Error getting reward data " + err.Error()},
+			Final: true,
+		})
+		return
+	}
+
+	out := make(chan cStructs.OutResp, 1)
+	out <- cStructs.OutResp{
+		ID:      tr.Id,
+		Type:    "Reward",
+		Payload: reward,
+	}
+	close(out)
+
+	sendResp(ctx, tr.Id, out, ic.logger, stream, nil)
+}
+
 // getRange gets given range of blocks and transactions
-func getRangeSingular(ctx context.Context, logger *zap.Logger, client Api, hr structs.HeightRange, out chan cStructs.OutResp) error {
+func getRangeSingular(ctx context.Context, logger *zap.Logger, client RPC, hr structs.HeightRange, out chan cStructs.OutResp) error {
 	defer logger.Sync()
 
 	batchesCtrl := make(chan error, 2)
