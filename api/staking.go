@@ -2,10 +2,13 @@ package api
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/figment-networks/indexer-manager/structs"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/tendermint/tendermint/libs/bech32"
+	"github.com/terra-project/core/types/util"
 	"github.com/terra-project/core/x/staking"
 )
 
@@ -15,12 +18,22 @@ func mapStakingUndelegateToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) 
 		return se, errors.New("Not a begin_unbonding type")
 	}
 
+	bech32ValAddr, err := bech32.ConvertAndEncode(util.Bech32PrefixValAddr, u.ValidatorAddress.Bytes())
+	if err != nil {
+		return se, fmt.Errorf("error converting ValidatorAddress: %w", err)
+	}
+
+	bech32DelAddr, err := bech32.ConvertAndEncode(util.Bech32PrefixAccAddr, u.DelegatorAddress.Bytes())
+	if err != nil {
+		return se, fmt.Errorf("error converting DelegatorAddress: %w", err)
+	}
+
 	return structs.SubsetEvent{
 		Type:   []string{"begin_unbonding"},
 		Module: "staking",
 		Node: map[string][]structs.Account{
-			"delegator": {{ID: u.DelegatorAddress.String()}},
-			"validator": {{ID: u.ValidatorAddress.String()}},
+			"delegator": {{ID: bech32DelAddr}},
+			"validator": {{ID: bech32ValAddr}},
 		},
 		Amount: map[string]structs.TransactionAmount{
 			"undelegate": {
@@ -37,12 +50,22 @@ func mapStakingDelegateToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
 	if !ok {
 		return se, errors.New("Not a delegate type")
 	}
+	bech32ValAddr, err := bech32.ConvertAndEncode(util.Bech32PrefixValAddr, d.ValidatorAddress.Bytes())
+	if err != nil {
+		return se, fmt.Errorf("error converting ValidatorAddress: %w", err)
+	}
+
+	bech32DelAddr, err := bech32.ConvertAndEncode(util.Bech32PrefixAccAddr, d.DelegatorAddress.Bytes())
+	if err != nil {
+		return se, fmt.Errorf("error converting DelegatorAddress: %w", err)
+	}
+
 	return structs.SubsetEvent{
 		Type:   []string{"delegate"},
 		Module: "staking",
 		Node: map[string][]structs.Account{
-			"delegator": {{ID: d.DelegatorAddress.String()}},
-			"validator": {{ID: d.ValidatorAddress.String()}},
+			"delegator": {{ID: bech32DelAddr}},
+			"validator": {{ID: bech32ValAddr}},
 		},
 		Amount: map[string]structs.TransactionAmount{
 			"delegate": {
@@ -60,13 +83,28 @@ func mapStakingBeginRedelegateToSub(msg sdk.Msg) (se structs.SubsetEvent, err er
 		return se, errors.New("Not a begin_redelegate type")
 	}
 
+	bech32ValDstAddr, err := bech32.ConvertAndEncode(util.Bech32PrefixValAddr, br.ValidatorDstAddress.Bytes())
+	if err != nil {
+		return se, fmt.Errorf("error converting ValidatorAddress: %w", err)
+	}
+
+	bech32ValSrcAddr, err := bech32.ConvertAndEncode(util.Bech32PrefixValAddr, br.ValidatorSrcAddress.Bytes())
+	if err != nil {
+		return se, fmt.Errorf("error converting ValidatorAddress: %w", err)
+	}
+
+	bech32DelAddr, err := bech32.ConvertAndEncode(util.Bech32PrefixAccAddr, br.DelegatorAddress.Bytes())
+	if err != nil {
+		return se, fmt.Errorf("error converting DelegatorAddress: %w", err)
+	}
+
 	return structs.SubsetEvent{
 		Type:   []string{"begin_redelegate"},
 		Module: "staking",
 		Node: map[string][]structs.Account{
-			"delegator":             {{ID: br.DelegatorAddress.String()}},
-			"validator_destination": {{ID: br.ValidatorDstAddress.String()}},
-			"validator_source":      {{ID: br.ValidatorDstAddress.String()}},
+			"delegator":             {{ID: bech32DelAddr}},
+			"validator_destination": {{ID: bech32ValDstAddr}},
+			"validator_source":      {{ID: bech32ValSrcAddr}},
 		},
 		Amount: map[string]structs.TransactionAmount{
 			"delegate": {
@@ -83,14 +121,25 @@ func mapStakingCreateValidatorToSub(msg sdk.Msg) (se structs.SubsetEvent, err er
 	if !ok {
 		return se, errors.New("Not a create_validator type")
 	}
+
+	bech32ValAddr, err := bech32.ConvertAndEncode(util.Bech32PrefixValAddr, ev.ValidatorAddress.Bytes())
+	if err != nil {
+		return se, fmt.Errorf("error converting ValidatorAddress: %w", err)
+	}
+
+	bech32DelAddr, err := bech32.ConvertAndEncode(util.Bech32PrefixAccAddr, ev.DelegatorAddress.Bytes())
+	if err != nil {
+		return se, fmt.Errorf("error converting DelegatorAddress: %w", err)
+	}
+
 	return structs.SubsetEvent{
 		Type:   []string{"create_validator"},
 		Module: "distribution",
 		Node: map[string][]structs.Account{
-			"delegator": {{ID: ev.DelegatorAddress.String()}},
+			"delegator": {{ID: bech32DelAddr}},
 			"validator": {
 				{
-					ID: ev.ValidatorAddress.String(),
+					ID: bech32ValAddr,
 					Details: &structs.AccountDetails{
 						Name:        ev.Description.Moniker,
 						Description: ev.Description.Details,
@@ -130,13 +179,18 @@ func mapStakingEditValidatorToSub(msg sdk.Msg) (se structs.SubsetEvent, err erro
 	if !ok {
 		return se, errors.New("Not a edit_validator type")
 	}
+	bech32ValAddr, err := bech32.ConvertAndEncode(util.Bech32PrefixValAddr, ev.ValidatorAddress.Bytes())
+	if err != nil {
+		return se, fmt.Errorf("error converting ValidatorAddress: %w", err)
+	}
+
 	sev := structs.SubsetEvent{
 		Type:   []string{"edit_validator"},
 		Module: "distribution",
 		Node: map[string][]structs.Account{
 			"validator": {
 				{
-					ID: ev.ValidatorAddress.String(),
+					ID: bech32ValAddr,
 					Details: &structs.AccountDetails{
 						Name:        ev.Description.Moniker,
 						Description: ev.Description.Details,

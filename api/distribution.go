@@ -67,7 +67,7 @@ func mapDistributionWithdrawDelegatorRewardToSub(msg sdk.Msg) (se structs.Subset
 		return se, errors.New("Not a withdraw_validator_commission type")
 	}
 
-	delegatorBech32ValAddr, err := bech32.ConvertAndEncode(util.Bech32PrefixAccAddr, wdr.DelegatorAddress.Bytes())
+	bech32DelAddr, err := bech32.ConvertAndEncode(util.Bech32PrefixAccAddr, wdr.DelegatorAddress.Bytes())
 	if err != nil {
 		return se, fmt.Errorf("error converting DelegatorAddress: %w", err)
 	}
@@ -81,7 +81,7 @@ func mapDistributionWithdrawDelegatorRewardToSub(msg sdk.Msg) (se structs.Subset
 		Type:   []string{"withdraw_delegator_reward"},
 		Module: "distribution",
 		Node: map[string][]structs.Account{
-			"delegator": {{ID: delegatorBech32ValAddr}},
+			"delegator": {{ID: bech32DelAddr}},
 			"validator": {{ID: bech32ValAddr}},
 		},
 		Recipient: []structs.EventTransfer{{
@@ -96,17 +96,17 @@ func mapDistributionFundCommunityPoolToSub(msg sdk.Msg) (se structs.SubsetEvent,
 		return se, errors.New("Not a withdraw_validator_commission type")
 	}
 
-	depositorBech32ValAddr, err := bech32.ConvertAndEncode(util.Bech32PrefixAccAddr, fcp.Depositor.Bytes())
+	bech32DepositerAddr, err := bech32.ConvertAndEncode(util.Bech32PrefixAccAddr, fcp.Depositor.Bytes())
 	if err != nil {
 		return se, fmt.Errorf("error converting DelegatorAddress: %w", err)
 	}
 
-	evt, err := distributionProduceEvTx(depositorBech32ValAddr, fcp.Amount)
+	evt, err := distributionProduceEvTx(bech32DepositerAddr, fcp.Amount)
 	return structs.SubsetEvent{
 		Type:   []string{"fund_community_pool"},
 		Module: "distribution",
 		Node: map[string][]structs.Account{
-			"depositor": {{ID: depositorBech32ValAddr}},
+			"depositor": {{ID: bech32DepositerAddr}},
 		},
 		Sender: []structs.EventTransfer{evt},
 	}, err
