@@ -253,8 +253,8 @@ func rawToTransaction(logger *zap.Logger, cdc *amino.Codec, txRaw TxResponse, tx
 		tev := structs.TransactionEvent{
 			ID: strconv.Itoa(index),
 		}
-
-		ev, err := getSubEvent(msg)
+		lf := findLog(txLog, index)
+		ev, err := getSubEvent(msg, lf)
 		if len(ev.Type) > 0 {
 			tev.Kind = msg.Type()
 			tev.Sub = append(tev.Sub, ev)
@@ -351,14 +351,14 @@ func getCurrency(in string) []string {
 	return curencyRegex.FindStringSubmatch(in)
 }
 
-func getSubEvent(msg sdk.Msg) (se structs.SubsetEvent, err error) {
+func getSubEvent(msg sdk.Msg, lf LogFormat) (se structs.SubsetEvent, err error) {
 	switch msg.Route() {
 	case "bank":
 		switch msg.Type() {
 		case "multisend":
-			return mapBankMultisendToSub(msg)
+			return mapBankMultisendToSub(msg, lf)
 		case "send":
-			return mapBankSendToSub(msg)
+			return mapBankSendToSub(msg, lf)
 		}
 	case "crisis":
 		switch msg.Type() {
@@ -368,11 +368,11 @@ func getSubEvent(msg sdk.Msg) (se structs.SubsetEvent, err error) {
 	case "distribution":
 		switch msg.Type() {
 		case "withdraw_validator_commission":
-			return mapDistributionWithdrawValidatorCommissionToSub(msg)
+			return mapDistributionWithdrawValidatorCommissionToSub(msg, lf)
 		case "set_withdraw_address":
 			return mapDistributionSetWithdrawAddressToSub(msg)
 		case "withdraw_delegator_reward":
-			return mapDistributionWithdrawDelegatorRewardToSub(msg)
+			return mapDistributionWithdrawDelegatorRewardToSub(msg, lf)
 		case "fund_community_pool":
 			return mapDistributionFundCommunityPoolToSub(msg)
 		}
@@ -384,18 +384,18 @@ func getSubEvent(msg sdk.Msg) (se structs.SubsetEvent, err error) {
 	case "gov":
 		switch msg.Type() {
 		case "deposit":
-			return mapGovDepositToSub(msg)
+			return mapGovDepositToSub(msg, lf)
 		case "vote":
 			return mapGovVoteToSub(msg)
 		case "submit_proposal":
-			return mapGovSubmitProposalToSub(msg)
+			return mapGovSubmitProposalToSub(msg, lf)
 		}
 	case "market":
 		switch msg.Type() {
 		case "swap":
-			return mapMarketSwapToSub(msg)
+			return mapMarketSwapToSub(msg, lf)
 		case "swapsend":
-			return mapMarketSwapSendToSub(msg)
+			return mapMarketSwapSendToSub(msg, lf)
 		}
 	case "msgauth":
 		switch msg.Type() {
@@ -409,7 +409,7 @@ func getSubEvent(msg sdk.Msg) (se structs.SubsetEvent, err error) {
 				return se, er
 			}
 			for _, subMsg := range msgs {
-				subEv, subErr := getSubEvent(subMsg)
+				subEv, subErr := getSubEvent(subMsg, lf)
 				if subErr != nil {
 					return se, err
 				}
@@ -439,15 +439,15 @@ func getSubEvent(msg sdk.Msg) (se structs.SubsetEvent, err error) {
 	case "staking":
 		switch msg.Type() {
 		case "begin_unbonding":
-			return mapStakingUndelegateToSub(msg)
+			return mapStakingUndelegateToSub(msg, lf)
 		case "edit_validator":
 			return mapStakingEditValidatorToSub(msg)
 		case "create_validator":
 			return mapStakingCreateValidatorToSub(msg)
 		case "delegate":
-			return mapStakingDelegateToSub(msg)
+			return mapStakingDelegateToSub(msg, lf)
 		case "begin_redelegate":
-			return mapStakingBeginRedelegateToSub(msg)
+			return mapStakingBeginRedelegateToSub(msg, lf)
 		}
 	case "wasm":
 		switch msg.Type() {
@@ -598,4 +598,81 @@ func (c *Client) GetFromRaw(logger *zap.Logger, txReader io.Reader) []map[string
 		})
 	}
 	return slice
+}
+
+func produceTransfers(se *structs.SubsetEvent, transferType, skipAddr string, logf LogFormat) (err error) {
+	var evts []structs.EventTransfer
+	m := make(map[string][]structs.TransactionAmount)
+	for _, ev := range logf.Events {
+		if ev.Type != "transfer" {
+			continue
+		}
+		attr := ev.Attributes
+
+		for i, recip := range attr.Recipient {
+			if recip == skipAddr || len(attr.Amount) < i {
+				continue
+			}
+			// (pacmessica): split amount because it may contain multiple amounts, eg. from logs `"value": "2896ukrw,16uluna,1umnt"`
+			amounts := strings.Split(attr.Amount[i], ",")
+			for _, amt := range amounts {
+				attrAmt := structs.TransactionAmount{Numeric: &big.Int{}}
+
+				sliced := getCurrency(amt)
+				var (
+					c       *big.Int
+					exp     int32
+					coinErr error
+				)
+				if len(sliced) == 3 {
+					attrAmt.Currency = sliced[2]
+					c, exp, coinErr = getCoin(sliced[1])
+				} else {
+					c, exp, coinErr = getCoin(amt)
+				}
+				if coinErr != nil {
+					return fmt.Errorf("[TERRA-API] Error parsing amount '%s': %s ", amt, coinErr)
+				}
+
+				attrAmt.Text = amt
+				attrAmt.Exp = exp
+				attrAmt.Numeric.Set(c)
+
+				m[recip] = append(m[recip], attrAmt)
+			}
+		}
+	}
+
+	for addr, amts := range m {
+		evts = append(evts, structs.EventTransfer{
+			Amounts: amts,
+			Account: structs.Account{ID: addr},
+		})
+	}
+
+	if len(evts) <= 0 {
+		return
+	}
+
+	if se.Transfers[transferType] == nil {
+		se.Transfers = make(map[string][]structs.EventTransfer)
+	}
+	se.Transfers[transferType] = evts
+
+	return
+}
+
+func findLog(lf []LogFormat, index int) LogFormat {
+	if len(lf) <= index {
+		return LogFormat{}
+	}
+	if l := lf[index]; l.MsgIndex == float64(index) {
+		return l
+	}
+	for _, l := range lf {
+		if l.MsgIndex == float64(index) {
+			return l
+		}
+	}
+	return LogFormat{}
 }

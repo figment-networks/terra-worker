@@ -11,13 +11,13 @@ import (
 	"github.com/terra-project/core/x/gov"
 )
 
-func mapGovDepositToSub(msg sdk.Msg) (se structs.SubsetEvent, er error) {
+func mapGovDepositToSub(msg sdk.Msg, logf LogFormat) (se structs.SubsetEvent, err error) {
 	dep, ok := msg.(gov.MsgDeposit)
 	if !ok {
 		return se, errors.New("Not a deposit type")
 	}
 
-	evt := structs.SubsetEvent{
+	se = structs.SubsetEvent{
 		Type:       []string{"deposit"},
 		Module:     "gov",
 		Node:       map[string][]structs.Account{"depositor": {{ID: dep.Depositor.String()}}},
@@ -43,13 +43,14 @@ func mapGovDepositToSub(msg sdk.Msg) (se structs.SubsetEvent, er error) {
 		txAmount[key] = am
 	}
 
-	evt.Sender = []structs.EventTransfer{sender}
-	evt.Amount = txAmount
+	se.Sender = []structs.EventTransfer{sender}
+	se.Amount = txAmount
 
-	return evt, nil
+	err = produceTransfers(&se, "send", "", logf)
+	return se, err
 }
 
-func mapGovVoteToSub(msg sdk.Msg) (se structs.SubsetEvent, er error) {
+func mapGovVoteToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
 	vote, ok := msg.(gov.MsgVote)
 	if !ok {
 		return se, errors.New("Not a vote type")
@@ -66,13 +67,13 @@ func mapGovVoteToSub(msg sdk.Msg) (se structs.SubsetEvent, er error) {
 	}, nil
 }
 
-func mapGovSubmitProposalToSub(msg sdk.Msg) (se structs.SubsetEvent, er error) {
+func mapGovSubmitProposalToSub(msg sdk.Msg, logf LogFormat) (se structs.SubsetEvent, err error) {
 	sp, ok := msg.(gov.MsgSubmitProposal)
 	if !ok {
 		return se, errors.New("Not a submit_proposal type")
 	}
 
-	evt := structs.SubsetEvent{
+	se = structs.SubsetEvent{
 		Type:   []string{"submit_proposal"},
 		Module: "gov",
 		Node:   map[string][]structs.Account{"proposer": {{ID: sp.Proposer.String()}}},
@@ -96,26 +97,27 @@ func mapGovSubmitProposalToSub(msg sdk.Msg) (se structs.SubsetEvent, er error) {
 
 		txAmount[key] = am
 	}
-	evt.Sender = []structs.EventTransfer{sender}
-	evt.Amount = txAmount
+	se.Sender = []structs.EventTransfer{sender}
+	se.Amount = txAmount
 
-	evt.Additional = map[string][]string{}
+	se.Additional = map[string][]string{}
 
 	if sp.Content.ProposalRoute() != "" {
-		evt.Additional["proposal_route"] = []string{sp.Content.ProposalRoute()}
+		se.Additional["proposal_route"] = []string{sp.Content.ProposalRoute()}
 	}
 	if sp.Content.ProposalType() != "" {
-		evt.Additional["proposal_type"] = []string{sp.Content.ProposalType()}
+		se.Additional["proposal_type"] = []string{sp.Content.ProposalType()}
 	}
 	if sp.Content.GetDescription() != "" {
-		evt.Additional["descritpion"] = []string{sp.Content.GetDescription()}
+		se.Additional["descritpion"] = []string{sp.Content.GetDescription()}
 	}
 	if sp.Content.GetTitle() != "" {
-		evt.Additional["title"] = []string{sp.Content.GetTitle()}
+		se.Additional["title"] = []string{sp.Content.GetTitle()}
 	}
 	if sp.Content.String() != "" {
-		evt.Additional["content"] = []string{sp.Content.String()}
+		se.Additional["content"] = []string{sp.Content.String()}
 	}
 
-	return evt, nil
+	err = produceTransfers(&se, "send", "", logf)
+	return se, err
 }
