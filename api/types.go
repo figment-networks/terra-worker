@@ -3,6 +3,8 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+
+	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 
 // TxResponse is result of querying for a tx
@@ -26,6 +28,15 @@ type ResponseDeliverTx struct {
 type TxTags struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
+}
+
+// RewardResponse is terra response for querying /rewards
+type RewardResponse struct {
+	Height string       `json:"height"`
+	Result RewardResult `json:"result"`
+}
+type RewardResult struct {
+	Total sdk.DecCoins `json:"total"`
 }
 
 type BlockHeader struct {

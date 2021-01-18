@@ -33,6 +33,7 @@ type Config struct {
 	Hostname        string        `json:"hostname" envconfig:"HOSTNAME"`
 
 	TerraRPCAddr string `json:"terra_rpc_addr" envconfig:"TERRA_RPC_ADDR" required:"true"`
+	TerraLCDAddr string `json:"terra_lcd_addr" envconfig:"TERRA_LCD_ADDR" required:"true"`
 	DatahubKey   string `json:"datahub_key" envconfig:"DATAHUB_KEY"`
 	ChainID      string `json:"chain_id" envconfig:"CHAIN_ID"`
 
