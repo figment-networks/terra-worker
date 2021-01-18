@@ -2,10 +2,13 @@ package api
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/figment-networks/indexer-manager/structs"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/tendermint/tendermint/libs/bech32"
+	"github.com/terra-project/core/types/util"
 	"github.com/terra-project/core/x/slashing"
 )
 
@@ -15,9 +18,14 @@ func mapSlashingUnjailToSub(msg sdk.Msg) (se structs.SubsetEvent, er error) {
 		return se, errors.New("Not a unjail type")
 	}
 
+	bech32ValAddr, err := bech32.ConvertAndEncode(util.Bech32PrefixValAddr, unjail.ValidatorAddr.Bytes())
+	if err != nil {
+		return se, fmt.Errorf("error converting ValidatorAddress: %w", err)
+	}
+
 	return structs.SubsetEvent{
 		Type:   []string{"unjail"},
 		Module: "slashing",
-		Node:   map[string][]structs.Account{"validator": {{ID: unjail.ValidatorAddr.String()}}},
+		Node:   map[string][]structs.Account{"validator": {{ID: bech32ValAddr}}},
 	}, nil
 }
