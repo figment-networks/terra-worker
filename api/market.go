@@ -12,7 +12,7 @@ import (
 	"github.com/terra-project/core/x/market"
 )
 
-func mapMarketSwapToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
+func mapMarketSwapToSub(msg sdk.Msg, logf LogFormat) (se structs.SubsetEvent, err error) {
 	swap, ok := msg.(market.MsgSwap)
 	if !ok {
 		return se, errors.New("Not a swap type")
@@ -45,10 +45,11 @@ func mapMarketSwapToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
 		}
 	}
 
-	return se, nil
+	err = produceTransfers(&se, "send", "", logf)
+	return se, err
 }
 
-func mapMarketSwapSendToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
+func mapMarketSwapSendToSub(msg sdk.Msg, logf LogFormat) (se structs.SubsetEvent, err error) {
 	swap, ok := msg.(market.MsgSwapSend)
 	if !ok {
 		return se, errors.New("Not a swapsend type")
@@ -88,5 +89,6 @@ func mapMarketSwapSendToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
 		"ask":   ask,
 	}
 
-	return se, nil
+	err = produceTransfers(&se, "send", "", logf)
+	return se, err
 }

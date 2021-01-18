@@ -15,7 +15,7 @@ import (
 	"github.com/terra-project/core/x/distribution"
 )
 
-func mapDistributionWithdrawValidatorCommissionToSub(msg sdk.Msg) (se structs.SubsetEvent, er error) {
+func mapDistributionWithdrawValidatorCommissionToSub(msg sdk.Msg, logf LogFormat) (se structs.SubsetEvent, err error) {
 	wvc, ok := msg.(distribution.MsgWithdrawValidatorCommission)
 	if !ok {
 		return se, errors.New("Not a withdraw_validator_commission type")
@@ -26,17 +26,20 @@ func mapDistributionWithdrawValidatorCommissionToSub(msg sdk.Msg) (se structs.Su
 		return se, fmt.Errorf("error converting ValidatorAddress: %w", err)
 	}
 
-	return structs.SubsetEvent{
+	se = structs.SubsetEvent{
 		Type:   []string{"withdraw_validator_commission"},
 		Module: "distribution",
 		Node:   map[string][]structs.Account{"validator": {{ID: bech32ValAddr}}},
 		Recipient: []structs.EventTransfer{{
 			Account: structs.Account{ID: bech32ValAddr},
 		}},
-	}, nil
+	}
+
+	err = produceTransfers(&se, "send", "", logf)
+	return se, err
 }
 
-func mapDistributionSetWithdrawAddressToSub(msg sdk.Msg) (se structs.SubsetEvent, er error) {
+func mapDistributionSetWithdrawAddressToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
 	swa, ok := msg.(distribution.MsgSetWithdrawAddress)
 	if !ok {
 		return se, errors.New("Not a set_withdraw_address type")
@@ -61,10 +64,10 @@ func mapDistributionSetWithdrawAddressToSub(msg sdk.Msg) (se structs.SubsetEvent
 	}, nil
 }
 
-func mapDistributionWithdrawDelegatorRewardToSub(msg sdk.Msg) (se structs.SubsetEvent, er error) {
+func mapDistributionWithdrawDelegatorRewardToSub(msg sdk.Msg, logf LogFormat) (se structs.SubsetEvent, err error) {
 	wdr, ok := msg.(distribution.MsgWithdrawDelegatorReward)
 	if !ok {
-		return se, errors.New("Not a withdraw_validator_commission type")
+		return se, errors.New("Not a withdraw_delegator_reward type")
 	}
 
 	delegatorBech32ValAddr, err := bech32.ConvertAndEncode(util.Bech32PrefixAccAddr, wdr.DelegatorAddress.Bytes())
@@ -77,7 +80,7 @@ func mapDistributionWithdrawDelegatorRewardToSub(msg sdk.Msg) (se structs.Subset
 		return se, fmt.Errorf("error converting ValidatorAddress: %w", err)
 	}
 
-	return structs.SubsetEvent{
+	se = structs.SubsetEvent{
 		Type:   []string{"withdraw_delegator_reward"},
 		Module: "distribution",
 		Node: map[string][]structs.Account{
@@ -87,13 +90,16 @@ func mapDistributionWithdrawDelegatorRewardToSub(msg sdk.Msg) (se structs.Subset
 		Recipient: []structs.EventTransfer{{
 			Account: structs.Account{ID: bech32ValAddr},
 		}},
-	}, nil
+	}
+
+	err = produceTransfers(&se, "reward", "", logf)
+	return se, err
 }
 
-func mapDistributionFundCommunityPoolToSub(msg sdk.Msg) (se structs.SubsetEvent, er error) {
+func mapDistributionFundCommunityPoolToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
 	fcp, ok := msg.(distributiontypes.MsgFundCommunityPool)
 	if !ok {
-		return se, errors.New("Not a withdraw_validator_commission type")
+		return se, errors.New("Not a withdraw_fund_community_pool type")
 	}
 
 	depositorBech32ValAddr, err := bech32.ConvertAndEncode(util.Bech32PrefixAccAddr, fcp.Depositor.Bytes())
