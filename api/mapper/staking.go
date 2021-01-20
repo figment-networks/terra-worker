@@ -1,10 +1,11 @@
-package api
+package mapper
 
 import (
 	"errors"
 	"fmt"
 
 	"github.com/figment-networks/indexer-manager/structs"
+	"github.com/figment-networks/terra-worker/api/types"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/tendermint/tendermint/libs/bech32"
@@ -14,7 +15,8 @@ import (
 
 const unbondedTokensPoolAddr = "terra1tygms3xhhs3yv487phx3dw4a95jn7t7l8l07dr"
 
-func mapStakingUndelegateToSub(msg sdk.Msg, logf LogFormat) (se structs.SubsetEvent, err error) {
+// StakingUndelegateToSub transforms staking.MsgUndelegate sdk messages to SubsetEvent
+func StakingUndelegateToSub(msg sdk.Msg, logf types.LogFormat) (se structs.SubsetEvent, err error) {
 	u, ok := msg.(staking.MsgUndelegate)
 	if !ok {
 		return se, errors.New("Not a begin_unbonding type")
@@ -50,7 +52,8 @@ func mapStakingUndelegateToSub(msg sdk.Msg, logf LogFormat) (se structs.SubsetEv
 	return se, err
 }
 
-func mapStakingDelegateToSub(msg sdk.Msg, logf LogFormat) (se structs.SubsetEvent, err error) {
+// StakingDelegateToSub transforms staking.MsgDelegate sdk messages to SubsetEvent
+func StakingDelegateToSub(msg sdk.Msg, logf types.LogFormat) (se structs.SubsetEvent, err error) {
 	d, ok := msg.(staking.MsgDelegate)
 	if !ok {
 		return se, errors.New("Not a delegate type")
@@ -86,7 +89,8 @@ func mapStakingDelegateToSub(msg sdk.Msg, logf LogFormat) (se structs.SubsetEven
 	return se, err
 }
 
-func mapStakingBeginRedelegateToSub(msg sdk.Msg, logf LogFormat) (se structs.SubsetEvent, err error) {
+// StakingBeginRedelegateToSub transforms staking.MsgBeginRedelegate sdk messages to SubsetEvent
+func StakingBeginRedelegateToSub(msg sdk.Msg, logf types.LogFormat) (se structs.SubsetEvent, err error) {
 	br, ok := msg.(staking.MsgBeginRedelegate)
 	if !ok {
 		return se, errors.New("Not a begin_redelegate type")
@@ -128,7 +132,8 @@ func mapStakingBeginRedelegateToSub(msg sdk.Msg, logf LogFormat) (se structs.Sub
 	return se, err
 }
 
-func mapStakingCreateValidatorToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
+// StakingCreateValidatorToSub transforms staking.MsgCreateValidator sdk messages to SubsetEvent
+func StakingCreateValidatorToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
 	ev, ok := msg.(staking.MsgCreateValidator)
 	if !ok {
 		return se, errors.New("Not a create_validator type")
@@ -186,7 +191,8 @@ func mapStakingCreateValidatorToSub(msg sdk.Msg) (se structs.SubsetEvent, err er
 	}, err
 }
 
-func mapStakingEditValidatorToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
+// StakingEditValidatorToSub transforms staking.MsgEditValidator sdk messages to SubsetEvent
+func StakingEditValidatorToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
 	ev, ok := msg.(staking.MsgEditValidator)
 	if !ok {
 		return se, errors.New("Not a edit_validator type")

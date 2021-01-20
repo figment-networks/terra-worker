@@ -1,4 +1,4 @@
-package api
+package mapper
 
 import (
 	"errors"
@@ -15,7 +15,8 @@ import (
 	"github.com/terra-project/core/x/wasm"
 )
 
-func mapWasmExecuteContractToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
+// WasmExecuteContractToSub transforms wasm.MsgExecuteContract sdk messages to SubsetEvent
+func WasmExecuteContractToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
 	ec, ok := msg.(wasm.MsgExecuteContract)
 	if !ok {
 		return se, errors.New("Not a execute_contract type")
@@ -53,7 +54,8 @@ func mapWasmExecuteContractToSub(msg sdk.Msg) (se structs.SubsetEvent, err error
 	}, err
 }
 
-func mapWasmStoreCodeToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
+// WasmStoreCodeToSub transforms wasm.MsgStoreCode sdk messages to SubsetEvent
+func WasmStoreCodeToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
 	sc, ok := msg.(wasm.MsgStoreCode)
 	if !ok {
 		return se, errors.New("Not a store_code type")
@@ -81,7 +83,8 @@ func mapWasmStoreCodeToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
 	return se, err
 }
 
-func mapWasmMsgUpdateContractOwnerToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
+// WasmMsgUpdateContractOwnerToSub transforms wasm.MsgUpdateContractOwner sdk messages to SubsetEvent
+func WasmMsgUpdateContractOwnerToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
 	uco, ok := msg.(wasm.MsgUpdateContractOwner)
 	if !ok {
 		return se, errors.New("Not a update_contract_owner type")
@@ -113,7 +116,8 @@ func mapWasmMsgUpdateContractOwnerToSub(msg sdk.Msg) (se structs.SubsetEvent, er
 	}, err
 }
 
-func mapWasmMsgInstantiateContractToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
+// WasmMsgInstantiateContractToSub transforms wasm.MsgInstantiateContract sdk messages to SubsetEvent
+func WasmMsgInstantiateContractToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
 	ic, ok := msg.(wasm.MsgInstantiateContract)
 	if !ok {
 		return se, errors.New("Not a instantiate_contract type")
@@ -161,7 +165,8 @@ func mapWasmMsgInstantiateContractToSub(msg sdk.Msg) (se structs.SubsetEvent, er
 	return se, err
 }
 
-func mapWasmMsgMigrateContractToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
+// WasmMsgMigrateContractToSub transforms wasm.MsgMigrateContract sdk messages to SubsetEvent
+func WasmMsgMigrateContractToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
 	mc, ok := msg.(wasm.MsgMigrateContract)
 	if !ok {
 		return se, errors.New("Not a migrate_contract type")

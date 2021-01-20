@@ -1,21 +1,21 @@
-package api
+package mapper
 
 import (
 	"errors"
 	"fmt"
 
 	"github.com/figment-networks/indexer-manager/structs"
-
-	"github.com/tendermint/tendermint/libs/bech32"
+	"github.com/figment-networks/terra-worker/api/types"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	distributiontypes "github.com/cosmos/cosmos-sdk/x/distribution/types"
-
+	"github.com/tendermint/tendermint/libs/bech32"
 	"github.com/terra-project/core/types/util"
 	"github.com/terra-project/core/x/distribution"
 )
 
-func mapDistributionWithdrawValidatorCommissionToSub(msg sdk.Msg, logf LogFormat) (se structs.SubsetEvent, err error) {
+// DistributionWithdrawValidatorCommissionToSub transforms distribution.MsgWithdrawValidatorCommission sdk messages to SubsetEvent
+func DistributionWithdrawValidatorCommissionToSub(msg sdk.Msg, logf types.LogFormat) (se structs.SubsetEvent, err error) {
 	wvc, ok := msg.(distribution.MsgWithdrawValidatorCommission)
 	if !ok {
 		return se, errors.New("Not a withdraw_validator_commission type")
@@ -39,7 +39,8 @@ func mapDistributionWithdrawValidatorCommissionToSub(msg sdk.Msg, logf LogFormat
 	return se, err
 }
 
-func mapDistributionSetWithdrawAddressToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
+// DistributionSetWithdrawAddressToSub transforms distribution.MsgSetWithdrawAddress sdk messages to SubsetEvent
+func DistributionSetWithdrawAddressToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
 	swa, ok := msg.(distribution.MsgSetWithdrawAddress)
 	if !ok {
 		return se, errors.New("Not a set_withdraw_address type")
@@ -64,7 +65,8 @@ func mapDistributionSetWithdrawAddressToSub(msg sdk.Msg) (se structs.SubsetEvent
 	}, nil
 }
 
-func mapDistributionWithdrawDelegatorRewardToSub(msg sdk.Msg, logf LogFormat) (se structs.SubsetEvent, err error) {
+// DistributionWithdrawDelegatorRewardToSub transforms distribution.MsgWithdrawDelegatorReward sdk messages to SubsetEvent
+func DistributionWithdrawDelegatorRewardToSub(msg sdk.Msg, logf types.LogFormat) (se structs.SubsetEvent, err error) {
 	wdr, ok := msg.(distribution.MsgWithdrawDelegatorReward)
 	if !ok {
 		return se, errors.New("Not a withdraw_delegator_reward type")
@@ -96,7 +98,8 @@ func mapDistributionWithdrawDelegatorRewardToSub(msg sdk.Msg, logf LogFormat) (s
 	return se, err
 }
 
-func mapDistributionFundCommunityPoolToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
+// DistributionFundCommunityPoolToSub transforms distribution.MsgFundCommunityPool messages to SubsetEvent
+func DistributionFundCommunityPoolToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
 	fcp, ok := msg.(distributiontypes.MsgFundCommunityPool)
 	if !ok {
 		return se, errors.New("Not a withdraw_fund_community_pool type")

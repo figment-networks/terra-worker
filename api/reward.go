@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/figment-networks/indexer-manager/structs"
+	"github.com/figment-networks/terra-worker/api/types"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/rest"
@@ -73,7 +74,7 @@ func (c *Client) GetReward(ctx context.Context, params structs.HeightAccount) (r
 		}
 		return resp, fmt.Errorf("[COSMOS-API] Error fetching rewards: %s ", result.Error)
 	}
-	var result RewardResponse
+	var result types.RewardResponse
 	if err = decoder.Decode(&result); err != nil {
 		return resp, err
 	}

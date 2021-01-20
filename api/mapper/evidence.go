@@ -1,4 +1,4 @@
-package api
+package mapper
 
 import (
 	"errors"
@@ -7,11 +7,11 @@ import (
 	"github.com/figment-networks/indexer-manager/structs"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
-
 	"github.com/terra-project/core/x/evidence"
 )
 
-func mapEvidenceSubmitEvidenceToSub(msg sdk.Msg) (se structs.SubsetEvent, er error) {
+// EvidenceSubmitEvidenceToSub transforms evidence.MsgSubmitEvidence sdk messages to SubsetEvent
+func EvidenceSubmitEvidenceToSub(msg sdk.Msg) (se structs.SubsetEvent, er error) {
 	mse, ok := msg.(evidence.MsgSubmitEvidence)
 	if !ok {
 		return se, errors.New("Not a submit_evidence type")

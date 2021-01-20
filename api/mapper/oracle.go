@@ -1,4 +1,4 @@
-package api
+package mapper
 
 import (
 	"errors"
@@ -14,7 +14,8 @@ import (
 	"github.com/terra-project/core/x/oracle"
 )
 
-func mapOracleExchangeRateVoteToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
+// OracleExchangeRateVoteToSub transforms oracle.MsgExchangeRateVote sdk messages to SubsetEvent
+func OracleExchangeRateVoteToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
 	exrv, ok := msg.(oracle.MsgExchangeRateVote)
 	if !ok {
 		return se, errors.New("Not a ExchangeRateVote type")
@@ -54,7 +55,8 @@ func mapOracleExchangeRateVoteToSub(msg sdk.Msg) (se structs.SubsetEvent, err er
 	return se, nil
 }
 
-func mapOracleExchangeRatePrevoteToSub(msg sdk.Msg) (se structs.SubsetEvent, er error) {
+// OracleExchangeRatePrevoteToSub transforms oracle.MsgExchangeRatePrevote sdk messages to SubsetEvent
+func OracleExchangeRatePrevoteToSub(msg sdk.Msg) (se structs.SubsetEvent, er error) {
 	exrv, ok := msg.(oracle.MsgExchangeRatePrevote)
 	if !ok {
 		return se, errors.New("Not a ExchangeRateVote type")
@@ -85,7 +87,8 @@ func mapOracleExchangeRatePrevoteToSub(msg sdk.Msg) (se structs.SubsetEvent, er 
 	return se, nil
 }
 
-func mapOracleDelegateFeedConsent(msg sdk.Msg) (se structs.SubsetEvent, er error) {
+// OracleDelegateFeedConsent transforms oracle.MsgDelegateFeedConsent sdk messages to SubsetEvent
+func OracleDelegateFeedConsent(msg sdk.Msg) (se structs.SubsetEvent, er error) {
 	dfc, ok := msg.(oracle.MsgDelegateFeedConsent)
 	if !ok {
 		return se, errors.New("Not a DelegateFeedConsent type")
@@ -110,7 +113,8 @@ func mapOracleDelegateFeedConsent(msg sdk.Msg) (se structs.SubsetEvent, er error
 	return se, nil
 }
 
-func mapOracleAggregateExchangeRatePrevoteToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
+// OracleAggregateExchangeRatePrevoteToSub transforms oracle.MsgAggregateExchangeRatePrevote sdk messages to SubsetEvent
+func OracleAggregateExchangeRatePrevoteToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
 	exrv, ok := msg.(oracle.MsgAggregateExchangeRatePrevote)
 	if !ok {
 		return se, errors.New("Not a AggregateExchangeRatePrevote type")
@@ -137,7 +141,8 @@ func mapOracleAggregateExchangeRatePrevoteToSub(msg sdk.Msg) (se structs.SubsetE
 	return se, nil
 }
 
-func mapOracleAggregateExchangeRateVoteToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
+// OracleAggregateExchangeRateVoteToSub transforms oracle.MsgAggregateExchangeRateVote sdk messages to SubsetEvent
+func OracleAggregateExchangeRateVoteToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
 	exrv, ok := msg.(oracle.MsgAggregateExchangeRateVote)
 	if !ok {
 		return se, errors.New("Not a AggregateExchangeRatePrevote type")

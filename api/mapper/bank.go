@@ -1,18 +1,19 @@
-package api
+package mapper
 
 import (
 	"errors"
 
 	"github.com/figment-networks/indexer-manager/structs"
+	"github.com/figment-networks/terra-worker/api/types"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/tendermint/tendermint/libs/bech32"
 	"github.com/terra-project/core/types/util"
 	"github.com/terra-project/core/x/bank"
-
-	"github.com/tendermint/tendermint/libs/bech32"
 )
 
-func mapBankMultisendToSub(msg sdk.Msg, logf LogFormat) (se structs.SubsetEvent, err error) {
+// BankMultisendToSub transforms bank.MsgMultiSend sdk messages to SubsetEvent
+func BankMultisendToSub(msg sdk.Msg, logf types.LogFormat) (se structs.SubsetEvent, err error) {
 	multisend, ok := msg.(bank.MsgMultiSend)
 	if !ok {
 		return se, errors.New("Not a multisend type")
@@ -42,7 +43,8 @@ func mapBankMultisendToSub(msg sdk.Msg, logf LogFormat) (se structs.SubsetEvent,
 	return se, err
 }
 
-func mapBankSendToSub(msg sdk.Msg, logf LogFormat) (se structs.SubsetEvent, err error) {
+// BankSendToSub transforms bank.MsgSend sdk messages to SubsetEvent
+func BankSendToSub(msg sdk.Msg, logf types.LogFormat) (se structs.SubsetEvent, err error) {
 	send, ok := msg.(bank.MsgSend)
 	if !ok {
 		return se, errors.New("Not a send type")

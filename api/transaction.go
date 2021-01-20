@@ -4,13 +4,10 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
-	"math/big"
 	"net/http"
-	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -19,6 +16,8 @@ import (
 	"github.com/figment-networks/indexer-manager/structs"
 	cStruct "github.com/figment-networks/indexer-manager/worker/connectivity/structs"
 	"github.com/figment-networks/indexing-engine/metrics"
+	"github.com/figment-networks/terra-worker/api/mapper"
+	"github.com/figment-networks/terra-worker/api/types"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	amino "github.com/tendermint/go-amino"
@@ -34,10 +33,8 @@ type TxLogError struct {
 	Message   string  `json:"message"`
 }
 
-var curencyRegex = regexp.MustCompile("([0-9\\.\\,\\-]+)[\\s]*([^0-9\\s]+)$")
-
 // SearchTx is making search api call
-func (c *Client) SearchTx(ctx context.Context, r structs.HeightRange, chain_id string, blocks map[uint64]structs.Block, out chan cStruct.OutResp, page, perPage int, fin chan string) {
+func (c *Client) SearchTx(ctx context.Context, r structs.HeightRange, blocks map[uint64]structs.Block, out chan cStruct.OutResp, page, perPage int, fin chan string) {
 	defer c.logger.Sync()
 
 	req, err := http.NewRequest(http.MethodGet, c.baseURL+"/tx_search", nil)
@@ -102,7 +99,7 @@ func (c *Client) SearchTx(ctx context.Context, r structs.HeightRange, chain_id s
 
 	decoder := json.NewDecoder(resp.Body)
 
-	result := &ResultTxSearch{}
+	result := &types.ResultTxSearch{}
 	if err = decoder.Decode(result); err != nil {
 		c.logger.Error("[TERRA-API] unable to decode result body", zap.Error(err))
 		err := fmt.Errorf("unable to decode result body %w", err)
@@ -140,12 +137,12 @@ func (c *Client) SearchTx(ctx context.Context, r structs.HeightRange, chain_id s
 	return
 }
 
-func RawToTransaction(logger *zap.Logger, cdc *amino.Codec, in []TxResponse, blocks map[uint64]structs.Block, out chan cStruct.OutResp) error {
+func RawToTransaction(logger *zap.Logger, cdc *amino.Codec, in []types.TxResponse, blocks map[uint64]structs.Block, out chan cStruct.OutResp) error {
 	readr := strings.NewReader("")
 	dec := json.NewDecoder(readr)
 	for _, txRaw := range in {
 		readr.Reset(txRaw.TxResult.Log)
-		lf := []LogFormat{}
+		lf := []types.LogFormat{}
 		txErr := TxLogError{}
 		if err := dec.Decode(&lf); err != nil {
 			// (lukanus): Try to fallback to known error format
@@ -163,13 +160,13 @@ func RawToTransaction(logger *zap.Logger, cdc *amino.Codec, in []TxResponse, blo
 	return nil
 }
 
-func RawToTransactionCh(logger *zap.Logger, cdc *amino.Codec, wg *sync.WaitGroup, in <-chan TxResponse, blocks map[uint64]structs.Block, out chan cStruct.OutResp) {
+func RawToTransactionCh(logger *zap.Logger, cdc *amino.Codec, wg *sync.WaitGroup, in <-chan types.TxResponse, blocks map[uint64]structs.Block, out chan cStruct.OutResp) {
 	readr := strings.NewReader("")
 	dec := json.NewDecoder(readr)
 	defer wg.Done()
 	var err error
 	for txRaw := range in {
-		lf := []LogFormat{}
+		lf := []types.LogFormat{}
 		txErr := TxLogError{}
 		if txRaw.TxResult.Log != "" {
 			readr.Reset(txRaw.TxResult.Log)
@@ -188,7 +185,7 @@ func RawToTransactionCh(logger *zap.Logger, cdc *amino.Codec, wg *sync.WaitGroup
 	}
 }
 
-func rawToTransaction(logger *zap.Logger, cdc *amino.Codec, txRaw TxResponse, txLog []LogFormat, txErr TxLogError, blocks map[uint64]structs.Block) (cStruct.OutResp, error) {
+func rawToTransaction(logger *zap.Logger, cdc *amino.Codec, txRaw types.TxResponse, txLog []types.LogFormat, txErr TxLogError, blocks map[uint64]structs.Block) (cStruct.OutResp, error) {
 	timer := metrics.NewTimer(transactionConversionDuration)
 	defer timer.ObserveDuration()
 
@@ -313,8 +310,7 @@ func rawToTransaction(logger *zap.Logger, cdc *amino.Codec, txRaw TxResponse, tx
 	return outTX, nil
 }
 
-func eventFromLogs(lf LogFormat) structs.TransactionEvent {
-
+func eventFromLogs(lf types.LogFormat) structs.TransactionEvent {
 	te := structs.TransactionEvent{
 		ID: strconv.FormatFloat(lf.MsgIndex, 'f', -1, 64),
 	}
@@ -347,64 +343,60 @@ func eventFromLogs(lf LogFormat) structs.TransactionEvent {
 	return te
 }
 
-func getCurrency(in string) []string {
-	return curencyRegex.FindStringSubmatch(in)
-}
-
-func getSubEvent(msg sdk.Msg, lf LogFormat) (se structs.SubsetEvent, err error) {
+func getSubEvent(msg sdk.Msg, lf types.LogFormat) (se structs.SubsetEvent, err error) {
 	switch msg.Route() {
 	case "bank":
 		switch msg.Type() {
 		case "multisend":
-			return mapBankMultisendToSub(msg, lf)
+			return mapper.BankMultisendToSub(msg, lf)
 		case "send":
-			return mapBankSendToSub(msg, lf)
+			return mapper.BankSendToSub(msg, lf)
 		}
 	case "crisis":
 		switch msg.Type() {
 		case "verify_invariant":
-			return mapCrisisVerifyInvariantToSub(msg)
+			return mapper.CrisisVerifyInvariantToSub(msg)
 		}
 	case "distribution":
 		switch msg.Type() {
 		case "withdraw_validator_commission":
-			return mapDistributionWithdrawValidatorCommissionToSub(msg, lf)
+			return mapper.DistributionWithdrawValidatorCommissionToSub(msg, lf)
 		case "set_withdraw_address":
-			return mapDistributionSetWithdrawAddressToSub(msg)
+			return mapper.DistributionSetWithdrawAddressToSub(msg)
 		case "withdraw_delegator_reward":
-			return mapDistributionWithdrawDelegatorRewardToSub(msg, lf)
+			return mapper.DistributionWithdrawDelegatorRewardToSub(msg, lf)
 		case "fund_community_pool":
-			return mapDistributionFundCommunityPoolToSub(msg)
+			return mapper.DistributionFundCommunityPoolToSub(msg)
 		}
 	case "evidence":
 		switch msg.Type() {
 		case "submit_evidence":
-			return mapEvidenceSubmitEvidenceToSub(msg)
+			return mapper.EvidenceSubmitEvidenceToSub(msg)
 		}
 	case "gov":
 		switch msg.Type() {
 		case "deposit":
-			return mapGovDepositToSub(msg, lf)
+			return mapper.GovDepositToSub(msg, lf)
 		case "vote":
-			return mapGovVoteToSub(msg)
+			return mapper.GovVoteToSub(msg)
 		case "submit_proposal":
-			return mapGovSubmitProposalToSub(msg, lf)
+			return mapper.GovSubmitProposalToSub(msg, lf)
 		}
 	case "market":
 		switch msg.Type() {
 		case "swap":
-			return mapMarketSwapToSub(msg, lf)
+			return mapper.MarketSwapToSub(msg, lf)
 		case "swapsend":
-			return mapMarketSwapSendToSub(msg, lf)
+			return mapper.MarketSwapSendToSub(msg, lf)
 		}
 	case "msgauth":
 		switch msg.Type() {
 		case "grant_authorization":
-			return mapMsgauthGrantAuthorizationToSub(msg)
+			return mapper.MsgauthGrantAuthorizationToSub(msg)
 		case "revoke_authorization":
-			return mapMsgauthRevokeAuthorizationToSub(msg)
+			return mapper.MsgauthRevokeAuthorizationToSub(msg)
 		case "exec_delegated":
-			se, msgs, er := mapMsgauthExecAuthorizedToSub(msg)
+			se, msgs, er := mapper.MsgauthExecAuthorizedToSub(msg)
 			if er != nil {
 				return se, er
 			}
@@ -421,46 +413,46 @@ func getSubEvent(msg sdk.Msg, lf LogFormat) (se structs.SubsetEvent, err error) 
 	case "oracle":
 		switch msg.Type() {
 		case "exchangeratevote":
-			return mapOracleExchangeRateVoteToSub(msg)
+			return mapper.OracleExchangeRateVoteToSub(msg)
 		case "exchangerateprevote":
-			return mapOracleExchangeRatePrevoteToSub(msg)
+			return mapper.OracleExchangeRatePrevoteToSub(msg)
 		case "delegatefeeder":
-			return mapOracleDelegateFeedConsent(msg)
+			return mapper.OracleDelegateFeedConsent(msg)
 		case "aggregateexchangerateprevote":
-			return mapOracleAggregateExchangeRatePrevoteToSub(msg)
+			return mapper.OracleAggregateExchangeRatePrevoteToSub(msg)
 		case "aggregateexchangeratevote":
-			return mapOracleAggregateExchangeRateVoteToSub(msg)
+			return mapper.OracleAggregateExchangeRateVoteToSub(msg)
 		}
 	case "slashing":
 		switch msg.Type() {
 		case "unjail":
-			return mapSlashingUnjailToSub(msg)
+			return mapper.SlashingUnjailToSub(msg)
 		}
 	case "staking":
 		switch msg.Type() {
 		case "begin_unbonding":
-			return mapStakingUndelegateToSub(msg, lf)
+			return mapper.StakingUndelegateToSub(msg, lf)
 		case "edit_validator":
-			return mapStakingEditValidatorToSub(msg)
+			return mapper.StakingEditValidatorToSub(msg)
 		case "create_validator":
-			return mapStakingCreateValidatorToSub(msg)
+			return mapper.StakingCreateValidatorToSub(msg)
 		case "delegate":
-			return mapStakingDelegateToSub(msg, lf)
+			return mapper.StakingDelegateToSub(msg, lf)
 		case "begin_redelegate":
-			return mapStakingBeginRedelegateToSub(msg, lf)
+			return mapper.StakingBeginRedelegateToSub(msg, lf)
 		}
 	case "wasm":
 		switch msg.Type() {
 		case "execute_contract":
-			return mapWasmExecuteContractToSub(msg)
+			return mapper.WasmExecuteContractToSub(msg)
 		case "store_code":
-			return mapWasmStoreCodeToSub(msg)
+			return mapper.WasmStoreCodeToSub(msg)
 		case "update_contract_owner":
-			return mapWasmMsgUpdateContractOwnerToSub(msg)
+			return mapper.WasmMsgUpdateContractOwnerToSub(msg)
 		case "instantiate_contract":
-			return mapWasmMsgInstantiateContractToSub(msg)
+			return mapper.WasmMsgInstantiateContractToSub(msg)
 		case "migrate_contract":
-			return mapWasmMsgMigrateContractToSub(msg)
+			return mapper.WasmMsgMigrateContractToSub(msg)
 		}
 	}
 
@@ -473,7 +465,7 @@ type ToGet struct {
 	PerPage int
 }
 
-func (c *Client) SingularHeightWorker(ctx context.Context, wg *sync.WaitGroup, out chan TxResponse, in chan ToGet) {
+func (c *Client) SingularHeightWorker(ctx context.Context, wg *sync.WaitGroup, out chan types.TxResponse, in chan ToGet) {
 	defer wg.Done()
 
 	for current := range in {
@@ -487,11 +479,10 @@ func (c *Client) SingularHeightWorker(ctx context.Context, wg *sync.WaitGroup, o
 
 		c.logger.Sync()
 	}
-
 }
 
 // SearchTxSingularHeight is making search api call for
-func (c *Client) SearchTxSingularHeight(ctx context.Context, height uint64, page, perPage int) (txSearch []TxResponse, err error) {
+func (c *Client) SearchTxSingularHeight(ctx context.Context, height uint64, page, perPage int) (txSearch []types.TxResponse, err error) {
 	req, err := http.NewRequest(http.MethodGet, c.baseURL+"/tx_search", nil)
 	if err != nil {
 		return txSearch, err
@@ -540,7 +531,7 @@ func (c *Client) SearchTxSingularHeight(ctx context.Context, height uint64, page
 
 	decoder := json.NewDecoder(resp.Body)
 
-	result := &GetTxSearchResponse{}
+	result := &types.GetTxSearchResponse{}
 	if err = decoder.Decode(result); err != nil {
 		c.logger.Error("[TERRA-API] unable to decode result body", zap.Error(err))
 		err = fmt.Errorf("unable to decode result body %w", err)
@@ -565,22 +556,6 @@ func (c *Client) SearchTxSingularHeight(ctx context.Context, height uint64, page
 	return result.Result.Txs, err
 }
 
-func getCoin(s string) (number *big.Int, exp int32, err error) {
-	s = strings.Replace(s, ",", ".", -1)
-	strs := strings.Split(s, `.`)
-	number = &big.Int{}
-	if len(strs) == 1 {
-		number.SetString(strs[0], 10)
-		return number, 0, nil
-	}
-	if len(strs) == 2 {
-		number.SetString(strs[0]+strs[1], 10)
-		return number, int32(len(strs[1])), nil
-	}
-
-	return number, 0, errors.New("Impossible to parse ")
-}
-
 // GetFromRaw returns raw data for plugin use;
 func (c *Client) GetFromRaw(logger *zap.Logger, txReader io.Reader) []map[string]interface{} {
 	tx := &auth.StdTx{}
@@ -600,71 +575,9 @@ func (c *Client) GetFromRaw(logger *zap.Logger, txReader io.Reader) []map[string
 	return slice
 }
 
-func produceTransfers(se *structs.SubsetEvent, transferType, skipAddr string, logf LogFormat) (err error) {
-	var evts []structs.EventTransfer
-	m := make(map[string][]structs.TransactionAmount)
-	for _, ev := range logf.Events {
-		if ev.Type != "transfer" {
-			continue
-		}
-		attr := ev.Attributes
-
-		for i, recip := range attr.Recipient {
-			if recip == skipAddr || len(attr.Amount) < i {
-				continue
-			}
-			// (pacmessica): split amount because it may contain multiple amounts, eg. from logs `"value": "2896ukrw,16uluna,1umnt"`
-			amounts := strings.Split(attr.Amount[i], ",")
-			for _, amt := range amounts {
-				attrAmt := structs.TransactionAmount{Numeric: &big.Int{}}
-
-				sliced := getCurrency(amt)
-				var (
-					c       *big.Int
-					exp     int32
-					coinErr error
-				)
-				if len(sliced) == 3 {
-					attrAmt.Currency = sliced[2]
-					c, exp, coinErr = getCoin(sliced[1])
-				} else {
-					c, exp, coinErr = getCoin(amt)
-				}
-				if coinErr != nil {
-					return fmt.Errorf("[TERRA-API] Error parsing amount '%s': %s ", amt, coinErr)
-				}
-
-				attrAmt.Text = amt
-				attrAmt.Exp = exp
-				attrAmt.Numeric.Set(c)
-
-				m[recip] = append(m[recip], attrAmt)
-			}
-		}
-	}
-
-	for addr, amts := range m {
-		evts = append(evts, structs.EventTransfer{
-			Amounts: amts,
-			Account: structs.Account{ID: addr},
-		})
-	}
-
-	if len(evts) <= 0 {
-		return
-	}
-
-	if se.Transfers[transferType] == nil {
-		se.Transfers = make(map[string][]structs.EventTransfer)
-	}
-	se.Transfers[transferType] = evts
-
-	return
-}
-
-func findLog(lf []LogFormat, index int) LogFormat {
+func findLog(lf []types.LogFormat, index int) types.LogFormat {
 	if len(lf) <= index {
-		return LogFormat{}
+		return types.LogFormat{}
 	}
 	if l := lf[index]; l.MsgIndex == float64(index) {
 		return l
@@ -674,5 +587,5 @@ func findLog(lf []LogFormat, index int) LogFormat {
 			return l
 		}
 	}
-	return LogFormat{}
+	return types.LogFormat{}
 }
