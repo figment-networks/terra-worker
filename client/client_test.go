@@ -42,11 +42,15 @@ func TestIndexerClient_GetTransactions(t *testing.T) {
 
 			ctx := context.Background()
 
-			mockApiCtrl := gomock.NewController(t)
-			apiMock := apiMocks.NewMockApi(mockApiCtrl)
-			defer mockApiCtrl.Finish()
+			mockRPCCtrl := gomock.NewController(t)
+			rpcMock := apiMocks.NewMockRPC(mockRPCCtrl)
+			defer mockRPCCtrl.Finish()
 
-			ic := NewIndexerClient(ctx, zaptest.NewLogger(t), apiMock, tt.fields.bigPage, tt.fields.maximumHeightsToGet)
+			mockLCDCtrl := gomock.NewController(t)
+			lcdMock := apiMocks.NewMockLCD(mockLCDCtrl)
+			defer mockLCDCtrl.Finish()
+
+			ic := NewIndexerClient(ctx, zaptest.NewLogger(t), lcdMock, rpcMock, tt.fields.bigPage, tt.fields.maximumHeightsToGet)
 			ic.GetTransactions(ctx, tt.args.tr, tt.args.stream, tt.args.client)
 
 			/*			ic := &IndexerClient{

@@ -47,3 +47,7 @@ pack-release-with-libs:
 	@rm -rf ./vendor
 	@rm -rf ./release
 
+.PHONY: mockgen
+mockgen:
+	@echo "[mockgen] generating mocks"
+	@mockgen -destination client/mocks/mock_client.go github.com/figment-networks/terra-worker/client RPC,LCD
