@@ -20,7 +20,6 @@ import (
 	"github.com/figment-networks/terra-worker/api/types"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	amino "github.com/tendermint/go-amino"
 	"github.com/terra-project/core/x/auth"
 
 	"go.uber.org/zap"
@@ -125,7 +124,7 @@ func (c *Client) SearchTx(ctx context.Context, r structs.HeightRange, blocks map
 	}
 	numberOfItemsTransactions.Observe(float64(totalCount))
 	c.logger.Debug("[TERRA-API] Converting requests ", zap.Int("number", len(result.Txs)), zap.Int("blocks", len(blocks)))
-	err = RawToTransaction(c.logger, c.cdc, result.Txs, blocks, out)
+	err = c.RawToTransaction(result.Txs, blocks, out)
 	if err != nil {
 		c.logger.Error("[TERRA-API] Error getting rawToTransaction", zap.Error(err))
 		fin <- err.Error()
@@ -137,7 +136,7 @@ func (c *Client) SearchTx(ctx context.Context, r structs.HeightRange, blocks map
 	return
 }
 
-func RawToTransaction(logger *zap.Logger, cdc *amino.Codec, in []types.TxResponse, blocks map[uint64]structs.Block, out chan cStruct.OutResp) error {
+func (c *Client) RawToTransaction(in []types.TxResponse, blocks map[uint64]structs.Block, out chan cStruct.OutResp) error {
 	readr := strings.NewReader("")
 	dec := json.NewDecoder(readr)
 	for _, txRaw := range in {
@@ -150,7 +149,7 @@ func RawToTransaction(logger *zap.Logger, cdc *amino.Codec, in []types.TxRespons
 			txErr.Message = txRaw.TxResult.Log
 		}
 
-		tx, err := rawToTransaction(logger, cdc, txRaw, lf, txErr, blocks)
+		tx, err := c.rawToTransaction(txRaw, lf, txErr, blocks)
 		if err != nil {
 			return err
 		}
@@ -160,7 +159,7 @@ func RawToTransaction(logger *zap.Logger, cdc *amino.Codec, in []types.TxRespons
 	return nil
 }
 
-func RawToTransactionCh(logger *zap.Logger, cdc *amino.Codec, wg *sync.WaitGroup, in <-chan types.TxResponse, blocks map[uint64]structs.Block, out chan cStruct.OutResp) {
+func (c *Client) RawToTransactionCh(wg *sync.WaitGroup, in <-chan types.TxResponse, blocks map[uint64]structs.Block, out chan cStruct.OutResp) {
 	readr := strings.NewReader("")
 	dec := json.NewDecoder(readr)
 	defer wg.Done()
@@ -177,15 +176,15 @@ func RawToTransactionCh(logger *zap.Logger, cdc *amino.Codec, wg *sync.WaitGroup
 				txErr.Message = txRaw.TxResult.Log
 			}
 		}
-		tx, err := rawToTransaction(logger, cdc, txRaw, lf, txErr, blocks)
+		tx, err := c.rawToTransaction(txRaw, lf, txErr, blocks) // todo only block?
 		if err != nil {
-			logger.Error("[TERRA-API] Problem decoding raw transaction", zap.Error(err), zap.String("height", txRaw.Height), zap.String("hash", txRaw.Hash))
+			c.logger.Error("[TERRA-API] Problem decoding raw transaction", zap.Error(err), zap.String("height", txRaw.Height), zap.String("hash", txRaw.Hash))
 		}
 		out <- tx
 	}
 }
 
-func rawToTransaction(logger *zap.Logger, cdc *amino.Codec, txRaw types.TxResponse, txLog []types.LogFormat, txErr TxLogError, blocks map[uint64]structs.Block) (cStruct.OutResp, error) {
+func (c *Client) rawToTransaction(txRaw types.TxResponse, txLog []types.LogFormat, txErr TxLogError, blocks map[uint64]structs.Block) (cStruct.OutResp, error) {
 	timer := metrics.NewTimer(transactionConversionDuration)
 	defer timer.ObserveDuration()
 
@@ -193,11 +192,11 @@ func rawToTransaction(logger *zap.Logger, cdc *amino.Codec, txRaw types.TxRespon
 	txReader := strings.NewReader(txRaw.TxData)
 	base64Dec := base64.NewDecoder(base64.StdEncoding, txReader)
 
-	_, err := cdc.UnmarshalBinaryLengthPrefixedReader(base64Dec, tx, 0)
+	_, err := c.cdc.UnmarshalBinaryLengthPrefixedReader(base64Dec, tx, 0)
 	if err != nil {
 		txReader := strings.NewReader(txRaw.TxData)
 		base64Dec := base64.NewDecoder(base64.StdEncoding, txReader)
-		logger.Error("[TERRA-API] Problem decoding raw transaction (cdc) ", zap.Error(err), zap.String("height", txRaw.Height))
+		c.logger.Error("[TERRA-API] Problem decoding raw transaction (cdc) ", zap.Error(err), zap.String("height", txRaw.Height))
 		_, err := cdcA.UnmarshalBinaryLengthPrefixedReader(base64Dec, tx, 0)
 		if err != nil {
 
@@ -205,7 +204,7 @@ func rawToTransaction(logger *zap.Logger, cdc *amino.Codec, txRaw types.TxRespon
 	}
 	hInt, err := strconv.ParseUint(txRaw.Height, 10, 64)
 	if err != nil {
-		logger.Error("[TERRA-API] Problem parsing height", zap.Error(err), zap.String("height", txRaw.Height))
+		c.logger.Error("[TERRA-API] Problem parsing height", zap.Error(err), zap.String("height", txRaw.Height))
 	}
 
 	outTX := cStruct.OutResp{Type: "Transaction"}
@@ -258,7 +257,7 @@ func rawToTransaction(logger *zap.Logger, cdc *amino.Codec, txRaw types.TxRespon
 		}
 
 		if err != nil {
-			logger.Error("[TERRA-API] Problem decoding transaction ", zap.Error(err), zap.Uint64("height", trans.Height), zap.String("type", msg.Type()), zap.String("route", msg.Route()))
+			c.logger.Error("[TERRA-API] Problem decoding transaction ", zap.Error(err), zap.Uint64("height", trans.Height), zap.String("type", msg.Type()), zap.String("route", msg.Route()))
 			continue
 		}
 
@@ -465,7 +464,7 @@ type ToGet struct {
 	PerPage int
 }
 
-func (c *Client) SingularHeightWorker(ctx context.Context, wg *sync.WaitGroup, out chan types.TxResponse, in chan ToGet) {
+func (c *Client) SingularHeightTxWorker(ctx context.Context, wg *sync.WaitGroup, out chan types.TxResponse, in chan ToGet) {
 	defer wg.Done()
 
 	for current := range in {

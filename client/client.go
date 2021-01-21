@@ -10,13 +10,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/tendermint/go-amino"
 	"go.uber.org/zap"
-
-	"github.com/figment-networks/indexing-engine/metrics"
 
 	"github.com/figment-networks/indexer-manager/structs"
 	cStructs "github.com/figment-networks/indexer-manager/worker/connectivity/structs"
+	"github.com/figment-networks/indexing-engine/metrics"
 	"github.com/figment-networks/terra-worker/api"
 	"github.com/figment-networks/terra-worker/api/types"
 )
@@ -33,8 +31,8 @@ var (
 )
 
 type RPC interface {
-	CDC() *amino.Codec
-	SingularHeightWorker(ctx context.Context, wg *sync.WaitGroup, out chan types.TxResponse, in chan api.ToGet)
+	RawToTransactionCh(wg *sync.WaitGroup, in <-chan types.TxResponse, blocks map[uint64]structs.Block, out chan cStructs.OutResp)
+	SingularHeightTxWorker(ctx context.Context, wg *sync.WaitGroup, out chan types.TxResponse, in chan api.ToGet)
 	GetBlocksMeta(ctx context.Context, params structs.HeightRange, limit uint64, blocks *api.BlocksMap, end chan<- error)
 }
 
@@ -358,13 +356,13 @@ func (ic *IndexerClient) GetLatest(ctx context.Context, tr cStructs.TaskRequest,
 	convertWG := &sync.WaitGroup{}
 	txIn := make(chan types.TxResponse, 20)
 	convertWG.Add(1)
-	go api.RawToTransactionCh(ic.logger, client.CDC(), convertWG, txIn, blocksAll.Blocks, out)
+	go client.RawToTransactionCh(convertWG, txIn, blocksAll.Blocks, out)
 
 	httpReqWG := &sync.WaitGroup{}
 	toGet := make(chan api.ToGet, 10)
 	for i := 0; i < 5; i++ {
 		httpReqWG.Add(1)
-		go client.SingularHeightWorker(ctx, httpReqWG, txIn, toGet)
+		go client.SingularHeightTxWorker(ctx, httpReqWG, txIn, toGet)
 	}
 
 	for h, block := range blocksAll.Blocks {
@@ -494,13 +492,13 @@ func getRangeSingular(ctx context.Context, logger *zap.Logger, client RPC, hr st
 	convertWG := &sync.WaitGroup{}
 	txIn := make(chan types.TxResponse, 20)
 	convertWG.Add(1)
-	go api.RawToTransactionCh(logger, client.CDC(), convertWG, txIn, blocksAll.Blocks, out)
+	go client.RawToTransactionCh(convertWG, txIn, blocksAll.Blocks, out)
 
 	httpReqWG := &sync.WaitGroup{}
 	toGet := make(chan api.ToGet, 10)
 	for i := 0; i < 5; i++ {
 		httpReqWG.Add(1)
-		go client.SingularHeightWorker(ctx, httpReqWG, txIn, toGet)
+		go client.SingularHeightTxWorker(ctx, httpReqWG, txIn, toGet)
 	}
 
 	for h, block := range blocksAll.Blocks {

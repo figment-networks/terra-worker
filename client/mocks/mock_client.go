@@ -7,10 +7,10 @@ package mock_client
 import (
 	context "context"
 	structs "github.com/figment-networks/indexer-manager/structs"
+	structs0 "github.com/figment-networks/indexer-manager/worker/connectivity/structs"
 	api "github.com/figment-networks/terra-worker/api"
 	types "github.com/figment-networks/terra-worker/api/types"
 	gomock "github.com/golang/mock/gomock"
-	amino "github.com/tendermint/go-amino"
 	reflect "reflect"
 	sync "sync"
 )
@@ -38,20 +38,6 @@ func (m *MockRPC) EXPECT() *MockRPCMockRecorder {
 	return m.recorder
 }
 
-// CDC mocks base method
-func (m *MockRPC) CDC() *amino.Codec {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CDC")
-	ret0, _ := ret[0].(*amino.Codec)
-	return ret0
-}
-
-// CDC indicates an expected call of CDC
-func (mr *MockRPCMockRecorder) CDC() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CDC", reflect.TypeOf((*MockRPC)(nil).CDC))
-}
-
 // GetBlocksMeta mocks base method
 func (m *MockRPC) GetBlocksMeta(arg0 context.Context, arg1 structs.HeightRange, arg2 uint64, arg3 *api.BlocksMap, arg4 chan<- error) {
 	m.ctrl.T.Helper()
@@ -64,16 +50,28 @@ func (mr *MockRPCMockRecorder) GetBlocksMeta(arg0, arg1, arg2, arg3, arg4 interf
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBlocksMeta", reflect.TypeOf((*MockRPC)(nil).GetBlocksMeta), arg0, arg1, arg2, arg3, arg4)
 }
 
-// SingularHeightWorker mocks base method
-func (m *MockRPC) SingularHeightWorker(arg0 context.Context, arg1 *sync.WaitGroup, arg2 chan types.TxResponse, arg3 chan api.ToGet) {
+// RawToTransactionCh mocks base method
+func (m *MockRPC) RawToTransactionCh(arg0 *sync.WaitGroup, arg1 <-chan types.TxResponse, arg2 map[uint64]structs.Block, arg3 chan structs0.OutResp) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SingularHeightWorker", arg0, arg1, arg2, arg3)
+	m.ctrl.Call(m, "RawToTransactionCh", arg0, arg1, arg2, arg3)
 }
 
-// SingularHeightWorker indicates an expected call of SingularHeightWorker
-func (mr *MockRPCMockRecorder) SingularHeightWorker(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+// RawToTransactionCh indicates an expected call of RawToTransactionCh
+func (mr *MockRPCMockRecorder) RawToTransactionCh(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SingularHeightWorker", reflect.TypeOf((*MockRPC)(nil).SingularHeightWorker), arg0, arg1, arg2, arg3)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RawToTransactionCh", reflect.TypeOf((*MockRPC)(nil).RawToTransactionCh), arg0, arg1, arg2, arg3)
+}
+
+// SingularHeightTxWorker mocks base method
+func (m *MockRPC) SingularHeightTxWorker(arg0 context.Context, arg1 *sync.WaitGroup, arg2 chan types.TxResponse, arg3 chan api.ToGet) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SingularHeightTxWorker", arg0, arg1, arg2, arg3)
+}
+
+// SingularHeightTxWorker indicates an expected call of SingularHeightTxWorker
+func (mr *MockRPCMockRecorder) SingularHeightTxWorker(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SingularHeightTxWorker", reflect.TypeOf((*MockRPC)(nil).SingularHeightTxWorker), arg0, arg1, arg2, arg3)
 }
 
 // MockLCD is a mock of LCD interface
