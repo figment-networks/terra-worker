@@ -1,5 +1,6 @@
 package client
 
+/*
 import (
 	"context"
 	"sync"
@@ -49,7 +50,7 @@ func TestIndexerClient_GetTransactions(t *testing.T) {
 			ic := NewIndexerClient(ctx, zaptest.NewLogger(t), apiMock, tt.fields.bigPage, tt.fields.maximumHeightsToGet)
 			ic.GetTransactions(ctx, tt.args.tr, tt.args.stream, tt.args.client)
 
-			/*			ic := &IndexerClient{
+			ic := &IndexerClient{
 							cli:                 tt.fields.cli,
 							logger:              tt.fields.logger,
 							streams:             tt.fields.streams,
@@ -57,7 +58,8 @@ func TestIndexerClient_GetTransactions(t *testing.T) {
 							bigPage:             tt.fields.bigPage,
 							maximumHeightsToGet: tt.fields.maximumHeightsToGet,
 						}
-			*/
+
 		})
 	}
 }
+*/
