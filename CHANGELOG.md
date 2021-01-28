@@ -1,4 +1,13 @@
 # Change Log
+## [0.0.5] -
+
+### Added
+- Field "transfers" in "sub" of transaction events. This contains "reward" and "send" transfers containing amount and recipient information.
+- Adds  method to fetch rewards for height
+- New config variable "terra_lcd_addr"
+### Changed
+### Fixed
+- fix terra addrresses decoding (for some subevents addresses were being decoded as cosmos) 
 
 ## [0.0.4] -
 
