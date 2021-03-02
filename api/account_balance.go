@@ -70,9 +70,9 @@ func (c *Client) GetAccountBalance(ctx context.Context, params structs.HeightAcc
 	if cliResp.StatusCode > 399 {
 		var result rest.ErrorResponse
 		if err = decoder.Decode(&result); err != nil {
-			return resp, fmt.Errorf("[COSMOS-API] Error fetching account balance: %d", cliResp.StatusCode)
+			return resp, fmt.Errorf("[TERRA-API] Error fetching account balance: %d", cliResp.StatusCode)
 		}
-		return resp, fmt.Errorf("[COSMOS-API] Error fetching account balance: %s ", result.Error)
+		return resp, fmt.Errorf("[TERRA-API] Error fetching account balance: %s ", result.Error)
 	}
 	var result responseBalance
 	if err = decoder.Decode(&result); err != nil {
