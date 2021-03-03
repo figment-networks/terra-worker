@@ -422,7 +422,7 @@ func (ic *IndexerClient) GetReward(ctx context.Context, tr cStructs.TaskRequest,
 		return
 	}
 
-	sCtx, cancel := context.WithTimeout(ctx, time.Second*2)
+	sCtx, cancel := context.WithTimeout(ctx, time.Second*20)
 	defer cancel()
 
 	reward, err := client.GetReward(sCtx, *ha)
@@ -463,7 +463,7 @@ func (ic *IndexerClient) GetAccountBalance(ctx context.Context, tr cStructs.Task
 		return
 	}
 
-	sCtx, cancel := context.WithTimeout(ctx, time.Second*2)
+	sCtx, cancel := context.WithTimeout(ctx, time.Second*20)
 	defer cancel()
 
 	blnc, err := client.GetAccountBalance(sCtx, *ha)

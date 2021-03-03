@@ -72,7 +72,9 @@ func TestGetAccountBalance(t *testing.T) {
 						require.NoError(t, errors.New("unexpected"))
 					}
 					require.Equal(t, blnc.Text, value)
-					require.Equal(t, blnc.Numeric, n)    // not available for terra
+					n = new(big.Int)
+					n.SetString(value, 10)
+					require.Equal(t, blnc.Numeric, n)
 					require.Equal(t, blnc.Exp, int32(0)) // not available for terra
 				}
 
