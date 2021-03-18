@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -24,6 +25,10 @@ import (
 	"github.com/terra-project/core/x/auth"
 
 	"go.uber.org/zap"
+)
+
+var (
+	errUnknownMessageType = fmt.Errorf("unknown message type")
 )
 
 // TxLogError Error message
@@ -258,6 +263,11 @@ func rawToTransaction(logger *zap.Logger, cdc *amino.Codec, txRaw types.TxRespon
 		}
 
 		if err != nil {
+			if errors.Is(err, errUnknownMessageType) {
+				unknownTransactions.WithLabels(msg.Type() + "/" + msg.Route()).Inc()
+			} else {
+				brokenTransactions.WithLabels(msg.Type() + "/" + msg.Route()).Inc()
+			}
 			logger.Error("[TERRA-API] Problem decoding transaction ", zap.Error(err), zap.Uint64("height", trans.Height), zap.String("type", msg.Type()), zap.String("route", msg.Route()))
 			continue
 		}
@@ -457,7 +467,7 @@ func getSubEvent(msg sdk.Msg, lf types.LogFormat) (se structs.SubsetEvent, err e
 		}
 	}
 
-	return se, fmt.Errorf("unknown message %s, %s  ", msg.Route(), msg.Type())
+	return se, fmt.Errorf("problem with %s - %s:  %w", msg.Route(), msg.Type(), errUnknownMessageType)
 }
 
 type ToGet struct {
