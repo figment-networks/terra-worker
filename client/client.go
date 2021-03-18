@@ -18,6 +18,7 @@ import (
 	"github.com/figment-networks/indexer-manager/structs"
 	cStructs "github.com/figment-networks/indexer-manager/worker/connectivity/structs"
 	"github.com/figment-networks/terra-worker/api"
+	"github.com/figment-networks/terra-worker/api/types"
 )
 
 //go:generate mockgen -destination=./mocks/mock_client.go -package=mocks -imports github.com/tendermint/go-amino github.com/figment-networks/terra-worker/client RPC
@@ -34,7 +35,7 @@ var (
 
 type RPC interface {
 	CDC() *amino.Codec
-	SingularHeightWorker(ctx context.Context, wg *sync.WaitGroup, out chan api.TxResponse, in chan api.ToGet)
+	SingularHeightWorker(ctx context.Context, wg *sync.WaitGroup, out chan types.TxResponse, in chan api.ToGet)
 	GetBlocksMeta(ctx context.Context, params structs.HeightRange, limit uint64, blocks *api.BlocksMap, end chan<- error)
 }
 
@@ -361,7 +362,7 @@ func (ic *IndexerClient) GetLatest(ctx context.Context, tr cStructs.TaskRequest,
 	go sendResp(sCtx, tr.Id, out, ic.logger, stream, fin)
 
 	convertWG := &sync.WaitGroup{}
-	txIn := make(chan api.TxResponse, 20)
+	txIn := make(chan types.TxResponse, 20)
 	convertWG.Add(1)
 	go api.RawToTransactionCh(ic.logger, client.CDC(), convertWG, txIn, blocksAll.Blocks, out)
 
@@ -538,7 +539,7 @@ func getRangeSingular(ctx context.Context, logger *zap.Logger, client RPC, hr st
 	}
 
 	convertWG := &sync.WaitGroup{}
-	txIn := make(chan api.TxResponse, 20)
+	txIn := make(chan types.TxResponse, 20)
 	convertWG.Add(1)
 	go api.RawToTransactionCh(logger, client.CDC(), convertWG, txIn, blocksAll.Blocks, out)
 

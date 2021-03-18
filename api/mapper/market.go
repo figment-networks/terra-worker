@@ -1,9 +1,10 @@
-package api
+package mapper
 
 import (
 	"errors"
 
 	"github.com/figment-networks/indexer-manager/structs"
+	"github.com/figment-networks/terra-worker/api/types"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/tendermint/tendermint/libs/bech32"
@@ -12,7 +13,7 @@ import (
 	"github.com/terra-project/core/x/market"
 )
 
-func mapMarketSwapToSub(msg sdk.Msg, logf LogFormat) (se structs.SubsetEvent, err error) {
+func MarketSwapToSub(msg sdk.Msg, logf types.LogFormat) (se structs.SubsetEvent, err error) {
 	swap, ok := msg.(market.MsgSwap)
 	if !ok {
 		return se, errors.New("Not a swap type")
@@ -49,7 +50,7 @@ func mapMarketSwapToSub(msg sdk.Msg, logf LogFormat) (se structs.SubsetEvent, er
 	return se, err
 }
 
-func mapMarketSwapSendToSub(msg sdk.Msg, logf LogFormat) (se structs.SubsetEvent, err error) {
+func MarketSwapSendToSub(msg sdk.Msg, logf types.LogFormat) (se structs.SubsetEvent, err error) {
 	swap, ok := msg.(market.MsgSwapSend)
 	if !ok {
 		return se, errors.New("Not a swapsend type")

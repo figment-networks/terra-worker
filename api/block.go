@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/figment-networks/indexer-manager/structs"
+	"github.com/figment-networks/terra-worker/api/types"
 )
 
 // BlocksMap map of blocks to control block map
@@ -66,7 +67,7 @@ func (c Client) GetBlocksMeta(ctx context.Context, params structs.HeightRange, l
 		return
 	}
 
-	rawRequestDuration.WithLabels("/blockchain", resp.Status).Observe(time.Since(n).Seconds())
+	rawRequestHTTPDuration.WithLabels("/blockchain", resp.Status).Observe(time.Since(n).Seconds())
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 { // (lukanus): for Datahub errors
@@ -94,7 +95,7 @@ func (c Client) GetBlocksMeta(ctx context.Context, params structs.HeightRange, l
 func decodeBlocksColumbus3(respBody io.ReadCloser, blocks *BlocksMap) (err error) {
 	decoder := json.NewDecoder(respBody)
 
-	var result *GetBlockchainResponse
+	var result *types.GetBlockchainResponse
 	if err := decoder.Decode(&result); err != nil {
 		return err
 	}
@@ -134,7 +135,7 @@ func decodeBlocksColumbus3(respBody io.ReadCloser, blocks *BlocksMap) (err error
 func decodeBlocksColumbus4(respBody io.ReadCloser, blocks *BlocksMap) (err error) {
 	decoder := json.NewDecoder(respBody)
 
-	var result *GetBlockchainResponseV4
+	var result *types.GetBlockchainResponseV4
 	if err := decoder.Decode(&result); err != nil {
 		return err
 	}

@@ -62,9 +62,6 @@ func (c *Client) CDC() *amino.Codec {
 
 // InitMetrics initialise metrics
 func InitMetrics() {
-	convertionDurationObserver = conversionDuration.WithLabels("conversion")
 	transactionConversionDuration = conversionDuration.WithLabels("transaction")
-	blockCacheEfficiencyHit = blockCacheEfficiency.WithLabels("hit")
-	blockCacheEfficiencyMissed = blockCacheEfficiency.WithLabels("missed")
 	numberOfItemsTransactions = numberOfItems.WithLabels("transactions")
 }

@@ -1,4 +1,4 @@
-package api
+package mapper
 
 import (
 	"errors"
@@ -6,14 +6,14 @@ import (
 
 	"github.com/figment-networks/indexer-manager/structs"
 
-	"github.com/tendermint/tendermint/libs/bech32"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/tendermint/tendermint/libs/bech32"
 
 	"github.com/terra-project/core/types/util"
 	crisis "github.com/terra-project/core/x/crisis"
 )
 
-func mapCrisisVerifyInvariantToSub(msg sdk.Msg) (se structs.SubsetEvent, er error) {
+func CrisisVerifyInvariantToSub(msg sdk.Msg) (se structs.SubsetEvent, er error) {
 	mvi, ok := msg.(crisis.MsgVerifyInvariant)
 	if !ok {
 		return se, errors.New("Not a verify_invariant type")

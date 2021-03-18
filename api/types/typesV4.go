@@ -1,4 +1,4 @@
-package api
+package types
 
 // GetBlockchainResponseV4 cosmos response from blockchain
 type GetBlockchainResponseV4 struct {

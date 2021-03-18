@@ -1,4 +1,4 @@
-package api
+package mapper
 
 import (
 	"errors"
@@ -12,7 +12,7 @@ import (
 	"github.com/terra-project/core/x/slashing"
 )
 
-func mapSlashingUnjailToSub(msg sdk.Msg) (se structs.SubsetEvent, er error) {
+func SlashingUnjailToSub(msg sdk.Msg) (se structs.SubsetEvent, er error) {
 	unjail, ok := msg.(slashing.MsgUnjail)
 	if !ok {
 		return se, errors.New("Not a unjail type")

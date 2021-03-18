@@ -3,14 +3,16 @@ package api
 import (
 	"context"
 	"fmt"
-	sdk "github.com/cosmos/cosmos-sdk/types"
-	"github.com/cosmos/cosmos-sdk/types/rest"
 	"strconv"
 
-	"github.com/figment-networks/indexer-manager/structs"
+	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/cosmos/cosmos-sdk/types/rest"
+
 	"net"
 	"net/http"
 	"time"
+
+	"github.com/figment-networks/indexer-manager/structs"
 
 	"encoding/json"
 )
@@ -55,7 +57,7 @@ func (c *Client) GetAccountBalance(ctx context.Context, params structs.HeightAcc
 		} else if err != nil {
 			return resp, err
 		}
-		rawRequestDuration.WithLabels(endpoint, cliResp.Status).Observe(time.Since(n).Seconds())
+		rawRequestHTTPDuration.WithLabels("/bank/balances/", cliResp.Status).Observe(time.Since(n).Seconds())
 
 		defer cliResp.Body.Close()
 

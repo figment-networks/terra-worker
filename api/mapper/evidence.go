@@ -1,4 +1,4 @@
-package api
+package mapper
 
 import (
 	"errors"
@@ -11,7 +11,7 @@ import (
 	"github.com/terra-project/core/x/evidence"
 )
 
-func mapEvidenceSubmitEvidenceToSub(msg sdk.Msg) (se structs.SubsetEvent, er error) {
+func EvidenceSubmitEvidenceToSub(msg sdk.Msg) (se structs.SubsetEvent, er error) {
 	mse, ok := msg.(evidence.MsgSubmitEvidence)
 	if !ok {
 		return se, errors.New("Not a submit_evidence type")
