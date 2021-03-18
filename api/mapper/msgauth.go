@@ -1,4 +1,4 @@
-package api
+package mapper
 
 import (
 	"errors"
@@ -13,7 +13,7 @@ import (
 	"github.com/terra-project/core/x/msgauth"
 )
 
-func mapMsgauthExecAuthorizedToSub(msg sdk.Msg) (se structs.SubsetEvent, msgs []sdk.Msg, err error) {
+func MsgauthExecAuthorizedToSub(msg sdk.Msg) (se structs.SubsetEvent, msgs []sdk.Msg, err error) {
 	execAuthorized, ok := msg.(msgauth.MsgExecAuthorized)
 	if !ok {
 		return se, nil, errors.New("Not a exec_delegated type")
@@ -33,7 +33,7 @@ func mapMsgauthExecAuthorizedToSub(msg sdk.Msg) (se structs.SubsetEvent, msgs []
 	}, execAuthorized.Msgs, nil
 }
 
-func mapMsgauthGrantAuthorizationToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
+func MsgauthGrantAuthorizationToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
 	grantAuthorized, ok := msg.(msgauth.MsgGrantAuthorization)
 	if !ok {
 		return se, errors.New("Not a grant_authorization type")
@@ -68,7 +68,7 @@ func mapMsgauthGrantAuthorizationToSub(msg sdk.Msg) (se structs.SubsetEvent, err
 	return subev, nil
 }
 
-func mapMsgauthRevokeAuthorizationToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
+func MsgauthRevokeAuthorizationToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
 	revokeAuthorized, ok := msg.(msgauth.MsgRevokeAuthorization)
 	if !ok {
 		return se, errors.New("Not a revoke_authorization type")

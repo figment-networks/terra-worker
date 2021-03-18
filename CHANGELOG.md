@@ -1,14 +1,9 @@
 # Change Log
-## [0.1.0] - 2021-03-04
+## [0.1.1] - 2021-03-04
 
 ### Added
 ### Changed
-### Fixed
-
-## [0.0.7] - 2021-03-03
-
-### Added
-### Changed
+- Unify metrics
 ### Fixed
 
 
@@ -27,7 +22,7 @@
 - New config variable "terra_lcd_addr"
 ### Changed
 ### Fixed
-- fix terra addrresses decoding (for some subevents addresses were being decoded as cosmos) 
+- fix terra addrresses decoding (for some subevents addresses were being decoded as cosmos)
 
 ## [0.0.4] -
 

@@ -1,17 +1,18 @@
-package api
+package mapper
 
 import (
 	"errors"
 	"strconv"
 
 	"github.com/figment-networks/indexer-manager/structs"
+	"github.com/figment-networks/terra-worker/api/types"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/terra-project/core/x/gov"
 )
 
-func mapGovDepositToSub(msg sdk.Msg, logf LogFormat) (se structs.SubsetEvent, err error) {
+func GovDepositToSub(msg sdk.Msg, logf types.LogFormat) (se structs.SubsetEvent, err error) {
 	dep, ok := msg.(gov.MsgDeposit)
 	if !ok {
 		return se, errors.New("Not a deposit type")
@@ -50,7 +51,7 @@ func mapGovDepositToSub(msg sdk.Msg, logf LogFormat) (se structs.SubsetEvent, er
 	return se, err
 }
 
-func mapGovVoteToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
+func GovVoteToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
 	vote, ok := msg.(gov.MsgVote)
 	if !ok {
 		return se, errors.New("Not a vote type")
@@ -67,7 +68,7 @@ func mapGovVoteToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
 	}, nil
 }
 
-func mapGovSubmitProposalToSub(msg sdk.Msg, logf LogFormat) (se structs.SubsetEvent, err error) {
+func GovSubmitProposalToSub(msg sdk.Msg, logf types.LogFormat) (se structs.SubsetEvent, err error) {
 	sp, ok := msg.(gov.MsgSubmitProposal)
 	if !ok {
 		return se, errors.New("Not a submit_proposal type")
