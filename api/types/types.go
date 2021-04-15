@@ -35,8 +35,15 @@ type RewardResponse struct {
 	Height string       `json:"height"`
 	Result RewardResult `json:"result"`
 }
+
 type RewardResult struct {
-	Total sdk.DecCoins `json:"total"`
+	Total            sdk.DecCoins      `json:"total"`
+	ValidatorRewards []ValidatorReward `json:"rewards"`
+}
+
+type ValidatorReward struct {
+	Validator string       `json:"validator_address"`
+	Rewards   sdk.DecCoins `json:"reward"`
 }
 
 type BlockHeader struct {
