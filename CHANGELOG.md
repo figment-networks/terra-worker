@@ -1,4 +1,12 @@
 # Change Log
+## [0.1.2] - 2021-03-04
+
+### Added
+### Changed
+- getRewards returns validator info, compatible with latest version of manager
+- transfers for `begin_redelegate` events return separate events per validator
+### Fixed
+
 ## [0.1.1] - 2021-03-04
 
 ### Added
