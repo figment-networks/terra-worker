@@ -249,8 +249,17 @@ func rawToTransaction(logger *zap.Logger, cdc *amino.Codec, txRaw types.TxRespon
 		})
 	}
 
-	presentIndexes := map[string]bool{}
+	appendEvents(logger, &trans, tx, txLog, txErr)
 
+	outTX.Payload = trans
+
+	return outTX, nil
+}
+
+// func rawToTransaction(logger *zap.Logger, cdc *amino.Codec, txRaw types.TxResponse, txLog []types.LogFormat, txErr TxLogError, blocks map[uint64]structs.Block) (cStruct.OutResp, error) {
+
+func appendEvents(logger *zap.Logger, trans *structs.Transaction, tx *auth.StdTx, txLog []types.LogFormat, txErr TxLogError) {
+	presentIndexes := map[string]bool{}
 	for index, msg := range tx.Msgs {
 		tev := structs.TransactionEvent{
 			ID: strconv.Itoa(index),
@@ -315,9 +324,6 @@ func rawToTransaction(logger *zap.Logger, cdc *amino.Codec, txRaw types.TxRespon
 		}
 		trans.Events = append(trans.Events, tev)
 	}
-	outTX.Payload = trans
-
-	return outTX, nil
 }
 
 func eventFromLogs(lf types.LogFormat) structs.TransactionEvent {
@@ -582,6 +588,28 @@ func (c *Client) GetFromRaw(logger *zap.Logger, txReader io.Reader) []map[string
 		})
 	}
 	return slice
+}
+
+// GetEventsFromRaw returns transaction events for plugin use;
+func (c *Client) GetEventsFromRaw(logger *zap.Logger, txReader, txLogReader io.Reader) structs.TransactionEvents {
+	tx := &auth.StdTx{}
+	base64Dec := base64.NewDecoder(base64.StdEncoding, txReader)
+	_, err := c.cdc.UnmarshalBinaryLengthPrefixedReader(base64Dec, tx, 0)
+	if err != nil {
+		logger.Error("[TERRA-API] Problem decoding raw transaction (cdc) ", zap.Error(err))
+	}
+
+	txLog := []types.LogFormat{}
+	base64Dec = base64.NewDecoder(base64.StdEncoding, txLogReader)
+	_, err = c.cdc.UnmarshalBinaryLengthPrefixedReader(base64Dec, txLog, 0)
+	if err != nil {
+		logger.Error("[TERRA-API] Problem decoding raw log (cdc) ", zap.Error(err))
+	}
+
+	trans := structs.Transaction{}
+
+	appendEvents(logger, &trans, tx, txLog, TxLogError{})
+	return trans.Events
 }
 
 func findLog(lf []types.LogFormat, index int) types.LogFormat {
