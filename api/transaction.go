@@ -591,25 +591,26 @@ func (c *Client) GetFromRaw(logger *zap.Logger, txReader io.Reader) []map[string
 }
 
 // GetEventsFromRaw returns transaction events for plugin use;
-func (c *Client) GetEventsFromRaw(logger *zap.Logger, txReader, txLogReader io.Reader) structs.TransactionEvents {
+func (c *Client) GetEventsFromRaw(logger *zap.Logger, txReader, txLogReader io.Reader) (structs.TransactionEvents, error) {
 	tx := &auth.StdTx{}
 	base64Dec := base64.NewDecoder(base64.StdEncoding, txReader)
 	_, err := c.cdc.UnmarshalBinaryLengthPrefixedReader(base64Dec, tx, 0)
 	if err != nil {
 		logger.Error("[TERRA-API] Problem decoding raw transaction (cdc) ", zap.Error(err))
+		return structs.TransactionEvents{}, err
 	}
 
 	txLog := []types.LogFormat{}
-	base64Dec = base64.NewDecoder(base64.StdEncoding, txLogReader)
-	_, err = c.cdc.UnmarshalBinaryLengthPrefixedReader(base64Dec, txLog, 0)
+	jsonDec := json.NewDecoder(txLogReader)
+	err = jsonDec.Decode(&txLog)
 	if err != nil {
-		logger.Error("[TERRA-API] Problem decoding raw log (cdc) ", zap.Error(err))
+		logger.Error("[TERRA-API] Problem decoding raw log ", zap.Error(err))
+		return structs.TransactionEvents{}, err
 	}
 
 	trans := structs.Transaction{}
-
 	appendEvents(logger, &trans, tx, txLog, TxLogError{})
-	return trans.Events
+	return trans.Events, nil
 }
 
 func findLog(lf []types.LogFormat, index int) types.LogFormat {
