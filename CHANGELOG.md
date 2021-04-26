@@ -1,5 +1,13 @@
 # Change Log
-## [0.1.2] - 2021-03-04
+
+## [0.1.3] - 2021-04-26
+
+### Added
+- create DecodeEvents plugin
+### Changed
+### Fixed
+
+## [0.1.2] - 2021-04-21
 
 ### Added
 ### Changed
