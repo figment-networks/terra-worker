@@ -1,5 +1,12 @@
 # Change Log
 
+## [0.1.4] - 2021-06-10
+
+### Added
+- Add method `GetAccountDelegations` to fetch delegations for an account
+### Changed
+### Fixed
+
 ## [0.1.3] - 2021-04-26
 
 ### Added
