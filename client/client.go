@@ -64,6 +64,7 @@ func NewIndexerClient(ctx context.Context, logger *zap.Logger, lcdCli LCD, rpcCl
 	getBlockDuration = endpointDuration.WithLabels("getBlock")
 	getAccountBalanceDuration = endpointDuration.WithLabels("getAccountBalance")
 	getAccountDelegationsDuration = endpointDuration.WithLabels("getAccountDelegations")
+	api.InitMetrics()
 
 	return &IndexerClient{
 		rpc:                 rpcCli,
