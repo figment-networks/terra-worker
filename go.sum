@@ -176,10 +176,8 @@ github.com/facebookgo/stack v0.0.0-20160209184415-751773369052/go.mod h1:UbMTZqL
 github.com/facebookgo/subset v0.0.0-20150612182917-8dac2c3c4870 h1:E2s37DuLxFhQDg5gKsWoLBOB0n+ZW8s599zru8FJ2/Y=
 github.com/facebookgo/subset v0.0.0-20150612182917-8dac2c3c4870/go.mod h1:5tD+neXqOorC30/tWg0LCSkrqj/AR6gu8yY8/fpw1q0=
 github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5KwzbycvMj4=
-github.com/figment-networks/indexer-manager v0.1.2 h1:xhl61PvdIItBLjoGs7pCldtS0ZwgQfStY3l5A3ogY6o=
-github.com/figment-networks/indexer-manager v0.1.2/go.mod h1:98qZshG+/SFvub//aA4coYT+2G6dY9ZVdVsOug7qtqU=
-github.com/figment-networks/indexer-manager v0.3.1 h1:7dpKFup0VYf6Ibrs6+dtmp+YWaYJ2MvyVA157LnHlvM=
-github.com/figment-networks/indexer-manager v0.3.1/go.mod h1:98qZshG+/SFvub//aA4coYT+2G6dY9ZVdVsOug7qtqU=
+github.com/figment-networks/indexer-manager v0.3.8 h1:puOXBKHAQrTc5cnTV1IddmtMPGmpulhlediw9kNgRuA=
+github.com/figment-networks/indexer-manager v0.3.8/go.mod h1:98qZshG+/SFvub//aA4coYT+2G6dY9ZVdVsOug7qtqU=
 github.com/figment-networks/indexing-engine v0.2.1 h1:P4i+z8jzTiqso+UAPfXQ2fQ4TZlO6rDgqZyLd4/wyc4=
 github.com/figment-networks/indexing-engine v0.2.1/go.mod h1:PxX1SoEGUoCkno1I3aDj1tynP1ySQomEkuzOZFIVHkI=
 github.com/fortytw2/leaktest v1.3.0 h1:u8491cBMTQ8ft8aeV+adlcytMZylmA5nnwwkRZjI8vw=

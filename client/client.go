@@ -27,10 +27,11 @@ const page = 100
 const blockchainEndpointLimit = 20
 
 var (
-	getTransactionDuration    *metrics.GroupObserver
-	getLatestDuration         *metrics.GroupObserver
-	getBlockDuration          *metrics.GroupObserver
-	getAccountBalanceDuration *metrics.GroupObserver
+	getTransactionDuration        *metrics.GroupObserver
+	getLatestDuration             *metrics.GroupObserver
+	getBlockDuration              *metrics.GroupObserver
+	getAccountBalanceDuration     *metrics.GroupObserver
+	getAccountDelegationsDuration *metrics.GroupObserver
 )
 
 type RPC interface {
@@ -42,6 +43,7 @@ type RPC interface {
 type LCD interface {
 	GetReward(ctx context.Context, params structs.HeightAccount) (resp structs.GetRewardResponse, err error)
 	GetAccountBalance(ctx context.Context, params structs.HeightAccount) (resp structs.GetAccountBalanceResponse, err error)
+	GetAccountDelegations(ctx context.Context, params structs.HeightAccount) (resp structs.GetAccountDelegationsResponse, err error)
 }
 
 type IndexerClient struct {
@@ -61,6 +63,7 @@ func NewIndexerClient(ctx context.Context, logger *zap.Logger, lcdCli LCD, rpcCl
 	getLatestDuration = endpointDuration.WithLabels("getLatest")
 	getBlockDuration = endpointDuration.WithLabels("getBlock")
 	getAccountBalanceDuration = endpointDuration.WithLabels("getAccountBalance")
+	getAccountDelegationsDuration = endpointDuration.WithLabels("getAccountDelegations")
 	api.InitMetrics()
 
 	return &IndexerClient{
@@ -124,6 +127,8 @@ func (ic *IndexerClient) Run(ctx context.Context, stream *cStructs.StreamAccess)
 				ic.GetReward(nCtx, taskRequest, stream, ic.lcd)
 			case structs.ReqIDAccountBalance:
 				ic.GetAccountBalance(nCtx, taskRequest, stream, ic.lcd)
+			case structs.ReqIDAccountDelegations:
+				ic.GetAccountDelegations(nCtx, taskRequest, stream, ic.lcd)
 			default:
 				stream.Send(cStructs.TaskResponse{
 					Id:    taskRequest.Id,
@@ -482,6 +487,47 @@ func (ic *IndexerClient) GetAccountBalance(ctx context.Context, tr cStructs.Task
 	out <- cStructs.OutResp{
 		ID:      tr.Id,
 		Type:    "AccountBalance",
+		Payload: blnc,
+	}
+	close(out)
+
+	sendResp(ctx, tr.Id, out, ic.logger, stream, nil)
+}
+
+// GetAccountDelegations gets account delegations
+func (ic *IndexerClient) GetAccountDelegations(ctx context.Context, tr cStructs.TaskRequest, stream *cStructs.StreamAccess, client LCD) {
+	timer := metrics.NewTimer(getAccountDelegationsDuration)
+	defer timer.ObserveDuration()
+
+	ha := &structs.HeightAccount{}
+	err := json.Unmarshal(tr.Payload, ha)
+	if err != nil {
+		stream.Send(cStructs.TaskResponse{
+			Id:    tr.Id,
+			Error: cStructs.TaskError{Msg: "Cannot unmarshal payload"},
+			Final: true,
+		})
+		return
+	}
+
+	sCtx, cancel := context.WithTimeout(ctx, time.Second*20)
+	defer cancel()
+
+	blnc, err := client.GetAccountDelegations(sCtx, *ha)
+	if err != nil {
+		ic.logger.Error("Error getting account balance", zap.Error(err))
+		stream.Send(cStructs.TaskResponse{
+			Id:    tr.Id,
+			Error: cStructs.TaskError{Msg: "Error getting account balance data " + err.Error()},
+			Final: true,
+		})
+		return
+	}
+
+	out := make(chan cStructs.OutResp, 1)
+	out <- cStructs.OutResp{
+		ID:      tr.Id,
+		Type:    "AccountDelegations",
 		Payload: blnc,
 	}
 	close(out)

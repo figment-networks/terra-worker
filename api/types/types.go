@@ -46,6 +46,24 @@ type ValidatorReward struct {
 	Rewards   sdk.DecCoins `json:"reward"`
 }
 
+// DelegationResponse is terra response for querying /delegations
+type DelegationResponse struct {
+	Height      string       `json:"height"`
+	Delegations []Delegation `json:"result"`
+}
+
+type Delegation struct {
+	DelegatorAddress string  `json:"delegator_address"`
+	ValidatorAddress string  `json:"validator_address"`
+	Shares           string  `json:"shares"`
+	Balance          Balance `json:"balance"`
+}
+
+type Balance struct {
+	Denom  string `json:"denom"`
+	Amount string `json:"amount"`
+}
+
 type BlockHeader struct {
 	Height  string `json:"height"`
 	ChainID string `json:"chain_id"`
