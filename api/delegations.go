@@ -19,6 +19,9 @@ import (
 
 var (
 	tenInt = big.NewInt(10)
+
+	// stakingCurrency is always uluna, https://medium.com/figment/terra-staking-delegation-guide-for-luna-tokens-32383f2f959f
+	stakingCurrency = "uluna"
 )
 
 // GetAccountDelegations fetches account delegations
@@ -69,7 +72,6 @@ func (c *Client) GetAccountDelegations(ctx context.Context, params structs.Heigh
 	}
 
 	decoder := json.NewDecoder(cliResp.Body)
-
 	if cliResp.StatusCode > 399 {
 		var result rest.ErrorResponse
 		if err = decoder.Decode(&result); err != nil {
@@ -77,24 +79,36 @@ func (c *Client) GetAccountDelegations(ctx context.Context, params structs.Heigh
 		}
 		return resp, fmt.Errorf("[TERRA-API] Error fetching rewards: %s ", result.Error)
 	}
-	var result types.DelegationResponse
+
+	if c.chainID == "columbus-4" {
+		err = decodeDelegationsColumbus4(decoder, &resp)
+	} else {
+		err = decodeDelegationsColumbus3(decoder, &resp)
+
+	}
+
+	return resp, err
+}
+
+func decodeDelegationsColumbus4(decoder *json.Decoder, resp *structs.GetAccountDelegationsResponse) (err error) {
+	var result types.DelegationResponseV4
 	if err = decoder.Decode(&result); err != nil {
-		return resp, err
+		return err
 	}
 
 	if len(result.Delegations) < 1 {
-		return resp, nil
+		return nil
 	}
 
 	for _, del := range result.Delegations {
 		shareInt, shareExp, err := gettIntAndExp(del.Shares)
 		if err != nil {
-			return resp, fmt.Errorf("could not convert shares, %w", err)
+			return fmt.Errorf("could not convert shares, %w", err)
 		}
 
 		amtInt, amtExp, err := gettIntAndExp(del.Balance.Amount)
 		if err != nil {
-			return resp, fmt.Errorf("could not convert shares, %w", err)
+			return fmt.Errorf("could not convert shares, %w", err)
 		}
 
 		resp.Delegations = append(resp.Delegations,
@@ -113,8 +127,47 @@ func (c *Client) GetAccountDelegations(ctx context.Context, params structs.Heigh
 			},
 		)
 	}
+	return
+}
 
-	return resp, err
+func decodeDelegationsColumbus3(decoder *json.Decoder, resp *structs.GetAccountDelegationsResponse) (err error) {
+	var result types.DelegationResponse
+	if err = decoder.Decode(&result); err != nil {
+		return err
+	}
+
+	if len(result.Delegations) < 1 {
+		return nil
+	}
+
+	for _, del := range result.Delegations {
+		shareInt, shareExp, err := gettIntAndExp(del.Shares)
+		if err != nil {
+			return fmt.Errorf("could not convert shares, %w", err)
+		}
+
+		amtInt, amtExp, err := gettIntAndExp(del.Balance)
+		if err != nil {
+			return fmt.Errorf("could not convert shares, %w", err)
+		}
+
+		resp.Delegations = append(resp.Delegations,
+			structs.Delegation{
+				Delegator: del.DelegatorAddress,
+				Validator: structs.Validator(del.ValidatorAddress),
+				Shares: structs.RewardAmount{
+					Numeric: shareInt,
+					Exp:     shareExp,
+				},
+				Balance: structs.RewardAmount{
+					Numeric:  amtInt,
+					Currency: stakingCurrency,
+					Exp:      amtExp,
+				},
+			},
+		)
+	}
+	return
 }
 
 // gettIntAndExp converts a string of an integer or float  and converts it

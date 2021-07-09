@@ -53,15 +53,10 @@ type DelegationResponse struct {
 }
 
 type Delegation struct {
-	DelegatorAddress string  `json:"delegator_address"`
-	ValidatorAddress string  `json:"validator_address"`
-	Shares           string  `json:"shares"`
-	Balance          Balance `json:"balance"`
-}
-
-type Balance struct {
-	Denom  string `json:"denom"`
-	Amount string `json:"amount"`
+	DelegatorAddress string `json:"delegator_address"`
+	ValidatorAddress string `json:"validator_address"`
+	Shares           string `json:"shares"`
+	Balance          string `json:"balance"`
 }
 type Error struct {
 	Code      int    `json:"code"`

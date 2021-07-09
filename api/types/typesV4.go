@@ -30,3 +30,21 @@ type BlockHeaderV4 struct {
 	ChainID string `json:"chain_id"`
 	Time    string `json:"time"`
 }
+
+// DelegationResponse is terra response for querying /delegations
+type DelegationResponseV4 struct {
+	Height      string         `json:"height"`
+	Delegations []DelegationV4 `json:"result"`
+}
+
+type DelegationV4 struct {
+	DelegatorAddress string  `json:"delegator_address"`
+	ValidatorAddress string  `json:"validator_address"`
+	Shares           string  `json:"shares"`
+	Balance          Balance `json:"balance"`
+}
+
+type Balance struct {
+	Denom  string `json:"denom"`
+	Amount string `json:"amount"`
+}
