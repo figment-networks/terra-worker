@@ -2,6 +2,8 @@
 
 This repository contains a worker part dedicated for cosmos transactions.
 
+# Compatibility
+Works with `columbus-3` and `columbus-4` chains
 ## Worker
 Stateless worker is responsible for connecting with the chain, getting information, converting it to a common format and sending it back to manager.
 Worker can be connected with multiple managers but should always answer only to the one that sent request.
@@ -29,9 +31,9 @@ Worker also need some basic config:
 
 ```bash
     MANAGERS=0.0.0.0:8085
-    TERRA_RPC_ADDR=https://cosmoshub-3.address
+    TERRA_RPC_ADDR=https://terra-4.address
     DATAHUB_KEY=1QAZXSW23EDCvfr45TGB
-    CHAIN_ID=cosmoshub-3
+    CHAIN_ID=columbus-4
 ```
 
 Where
@@ -48,9 +50,8 @@ If you wanna connect with manager running on docker instance add `HOSTNAME=host.
 First, you will need to set up a few dependencies:
 
 1. [Install Go](https://golang.org/doc/install)
-2. A Kava network node with both RPC and LCD APIs (in this example, we assume it's running at http://localhost)
-3. A running [indexer-manager](https://github.com/figment-networks/indexer-manager) instance
-4. A running datastore API instance (configured with `STORE_HTTP_ENDPOINTS`).
+2. A running [indexer-manager](https://github.com/figment-networks/indexer-manager) instance
+3. A running datastore API instance (configured with `STORE_HTTP_ENDPOINTS`).
 
 Then, run the worker with some environment config:
 

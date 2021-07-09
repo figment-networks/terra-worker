@@ -143,7 +143,7 @@ func (ic *IndexerClient) Run(ctx context.Context, stream *cStructs.StreamAccess)
 
 }
 
-// GetTransactions gets new transactions and blocks from kava for given range
+// GetTransactions gets new transactions and blocks from terra for given range
 func (ic *IndexerClient) GetTransactions(ctx context.Context, tr cStructs.TaskRequest, stream *cStructs.StreamAccess, client RPC) {
 	timer := metrics.NewTimer(getTransactionDuration)
 	defer timer.ObserveDuration()

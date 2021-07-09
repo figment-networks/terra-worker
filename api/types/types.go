@@ -63,36 +63,6 @@ type Balance struct {
 	Denom  string `json:"denom"`
 	Amount string `json:"amount"`
 }
-
-type BlockHeader struct {
-	Height  string `json:"height"`
-	ChainID string `json:"chain_id"`
-	Time    string `json:"time"`
-	NumTxs  string `json:"num_txs"`
-}
-
-// ResultBlockchain is result of fetching block
-type ResultBlockchain struct {
-	LastHeight string      `json:"last_height"`
-	BlockMetas []BlockMeta `json:"block_metas"`
-}
-
-// BlockMeta is block metadata
-type BlockMeta struct {
-	BlockID BlockID     `json:"block_id"`
-	Header  BlockHeader `json:"header"`
-}
-
-// BlockID info
-type BlockID struct {
-	Hash string `json:"hash"`
-}
-
-// Block is terra block data
-type Block struct {
-	Header BlockHeader `json:"header"`
-}
-
 type Error struct {
 	Code      int    `json:"code"`
 	CodeSpace string `json:"codespace"`
@@ -115,14 +85,6 @@ type GetTxSearchResponse struct {
 	Error  Error          `json:"error"`
 }
 
-// GetBlockchainResponse terra response from /blockchain
-type GetBlockchainResponse struct {
-	ID     string           `json:"id"`
-	RPC    string           `json:"jsonrpc"`
-	Result ResultBlockchain `json:"result"`
-	Error  Error            `json:"error"`
-}
-
 // GetBlockResponse terra response from /block
 
 type GetBlockResponse struct {
@@ -133,8 +95,29 @@ type GetBlockResponse struct {
 }
 
 type ResultBlock struct {
-	Block   Block   `json:"block"`
+	Block     Block     `json:"block"`
+	BlockMeta BlockMeta `json:"block_meta"`
+}
+
+type BlockMeta struct {
 	BlockID BlockID `json:"block_id"`
+}
+
+type BlockHeader struct {
+	Height  string `json:"height"`
+	ChainID string `json:"chain_id"`
+	Time    string `json:"time"`
+	NumTxs  string `json:"num_txs"`
+}
+
+// Block is terra block data
+type Block struct {
+	Header BlockHeader `json:"header"`
+}
+
+// BlockID info
+type BlockID struct {
+	Hash string `json:"hash"`
 }
 
 type LogFormatLog struct {

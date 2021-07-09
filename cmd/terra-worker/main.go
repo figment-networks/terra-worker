@@ -108,8 +108,8 @@ func main() {
 
 	grpcServer := grpc.NewServer()
 
-	rpcClient := api.NewClient(cfg.TerraRPCAddr, cfg.DatahubKey, logger.GetLogger(), nil, int(cfg.RequestsPerSecond))
-	lcdClient := api.NewClient(cfg.TerraLCDAddr, cfg.DatahubKey, logger.GetLogger(), nil, int(cfg.RequestsPerSecond))
+	rpcClient := api.NewClient(cfg.TerraRPCAddr, cfg.DatahubKey, cfg.ChainID, logger.GetLogger(), nil, int(cfg.RequestsPerSecond))
+	lcdClient := api.NewClient(cfg.TerraLCDAddr, cfg.DatahubKey, cfg.ChainID, logger.GetLogger(), nil, int(cfg.RequestsPerSecond))
 
 	storeEndpoints := strings.Split(cfg.StoreHTTPEndpoints, ",")
 	hStore := httpStore.NewHTTPStore(storeEndpoints, &http.Client{})

@@ -72,9 +72,9 @@ func (c *Client) GetReward(ctx context.Context, params structs.HeightAccount) (r
 	if cliResp.StatusCode > 399 {
 		var result rest.ErrorResponse
 		if err = decoder.Decode(&result); err != nil {
-			return resp, fmt.Errorf("[COSMOS-API] Error fetching rewards: %d", cliResp.StatusCode)
+			return resp, fmt.Errorf("[TERRA-API] Error fetching rewards: %d", cliResp.StatusCode)
 		}
-		return resp, fmt.Errorf("[COSMOS-API] Error fetching rewards: %s ", result.Error)
+		return resp, fmt.Errorf("[TERRA-API] Error fetching rewards: %s ", result.Error)
 	}
 	var result types.RewardResponse
 	if err = decoder.Decode(&result); err != nil {
