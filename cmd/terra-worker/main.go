@@ -182,12 +182,16 @@ func initConfig(path string) (*config.Config, error) {
 		}
 	}
 
-	if cfg.TerraRPCAddr != "" {
+	if cfg.TerraRPCAddr != "" && (cfg.ChainID == "columbus-3" || cfg.ChainID == "columbus-4") {
 		return cfg, nil
 	}
 
 	if err := config.FromEnv(cfg); err != nil {
 		return nil, err
+	}
+
+	if cfg.ChainID != "columbus-3" && cfg.ChainID != "columbus-4" {
+		return nil, fmt.Errorf("ChainID must be one of: columbus-3, columbus-4")
 	}
 
 	return cfg, nil
