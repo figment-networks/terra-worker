@@ -33,7 +33,7 @@ func (ic *IndexerClient) BlockAndTx(ctx context.Context, height uint64) (blockWM
 		var txs []structs.Transaction
 		txs, err = ic.rpc.SearchTx(ctx, structs.HeightHash{Height: height}, blockWM.Block, page)
 		for _, t := range txs {
-			txsWM = append(txsWM, structs.TransactionWithMeta{Network: "kava", ChainID: t.ChainID, Version: "0.0.1", Transaction: t})
+			txsWM = append(txsWM, structs.TransactionWithMeta{Network: "terra", ChainID: t.ChainID, Version: "0.0.1", Transaction: t})
 		}
 		if len(txsWM) > 0 {
 			if err := hSess.StoreTransactions(ctx, txsWM); err != nil {

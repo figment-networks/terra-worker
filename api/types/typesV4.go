@@ -31,7 +31,7 @@ type BlockHeaderV4 struct {
 // GetBlockResponse terra response from /block
 
 type GetBlockResponseV4 struct {
-	ID     string        `json:"id"`
+	// ID     string        `json:"id"`
 	RPC    string        `json:"jsonrpc"`
 	Result ResultBlockV4 `json:"result"`
 	Error  Error         `json:"error"`

@@ -66,7 +66,7 @@ func (c Client) GetBlock(ctx context.Context, params structs.HeightHash) (block 
 	}
 
 	if result.Error.Message != "" {
-		return block, fmt.Errorf("[KAVA-API] Error fetching block: %s ", result.Error.Message)
+		return block, fmt.Errorf("[TERRA-API] Error fetching block: %s ", result.Error.Message)
 	}
 	bTime, err := time.Parse(time.RFC3339Nano, result.Result.Block.Header.Time)
 	if err != nil {

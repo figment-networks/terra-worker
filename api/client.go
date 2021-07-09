@@ -64,4 +64,5 @@ func (c *Client) CDC() *amino.Codec {
 func InitMetrics() {
 	transactionConversionDuration = conversionDuration.WithLabels("transaction")
 	numberOfItemsTransactions = numberOfItems.WithLabels("transactions")
+	numberOfItemsInBlock = numberOfItemsBlock.WithLabels("transactions")
 }
