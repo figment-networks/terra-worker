@@ -12,7 +12,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/figment-networks/indexer-manager/structs"
+	"github.com/figment-networks/indexing-engine/structs"
 
 	"encoding/json"
 )

@@ -14,9 +14,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/figment-networks/indexer-manager/structs"
-	cStruct "github.com/figment-networks/indexer-manager/worker/connectivity/structs"
 	"github.com/figment-networks/indexing-engine/metrics"
+	"github.com/figment-networks/indexing-engine/structs"
 	"github.com/figment-networks/terra-worker/api/mapper"
 	"github.com/figment-networks/terra-worker/api/types"
 
@@ -39,162 +38,120 @@ type TxLogError struct {
 }
 
 // SearchTx is making search api call
-func (c *Client) SearchTx(ctx context.Context, r structs.HeightRange, chain_id string, blocks map[uint64]structs.Block, out chan cStruct.OutResp, page, perPage int, fin chan string) {
+func (c *Client) SearchTx(ctx context.Context, r structs.HeightHash, block structs.Block, perPage uint64) (txs []structs.Transaction, err error) {
 	defer c.logger.Sync()
 
-	req, err := http.NewRequest(http.MethodGet, c.baseURL+"/tx_search", nil)
-	if err != nil {
-		fin <- err.Error()
-		return
-	}
-
-	req.Header.Add("Content-Type", "application/json")
-	if c.key != "" {
-		req.Header.Add("Authorization", c.key)
-	}
-
-	q := req.URL.Query()
-
-	s := strings.Builder{}
-
-	s.WriteString(`"`)
-	s.WriteString("tx.height>=")
-	s.WriteString(strconv.FormatUint(r.StartHeight, 10))
-
-	if r.EndHeight > 0 && r.EndHeight != r.StartHeight {
-		s.WriteString(" AND ")
-		s.WriteString("tx.height<=")
-		s.WriteString(strconv.FormatUint(r.EndHeight, 10))
-	}
-	s.WriteString(`"`)
-
-	q.Add("query", s.String())
-	q.Add("page", strconv.Itoa(page))
-	q.Add("per_page", strconv.Itoa(perPage))
-	req.URL.RawQuery = q.Encode()
-
-	// (lukanus): do not block initial calls
-	if r.EndHeight != 0 && r.StartHeight != 0 {
-		err = c.rateLimiter.Wait(ctx)
-		if err != nil {
-			fin <- err.Error()
-			return
+	numberOfItemsInBlock.Add(float64(block.NumberOfTransactions))
+	page := uint64(1)
+	for {
+		now := time.Now()
+		if err := c.rateLimiter.Wait(ctx); err != nil {
+			return txs, err
 		}
-	}
 
-	now := time.Now()
-	resp, err := c.httpClient.Do(req)
+		sCtx, cancel := context.WithTimeout(ctx, time.Second*10)
+		defer cancel()
+		req, err := http.NewRequestWithContext(sCtx, http.MethodGet, c.baseURL+"/tx_search", nil)
+		if err != nil {
+			return txs, err
+		}
 
-	c.logger.Debug("[TERRA-API] Request Time (/tx_search)", zap.Duration("duration", time.Now().Sub(now)))
-	if err != nil {
-		fin <- err.Error()
-		return
-	}
+		req.Header.Add("Content-Type", "application/json")
+		if c.key != "" {
+			req.Header.Add("Authorization", c.key)
+		}
 
-	if resp.StatusCode > 399 { // ERROR
-		serverError, _ := ioutil.ReadAll(resp.Body)
+		q := req.URL.Query()
+		s := strings.Builder{}
+		s.WriteString(`"`)
+		s.WriteString("tx.height=")
+		s.WriteString(strconv.FormatUint(r.Height, 10))
+		s.WriteString(`"`)
 
-		c.logger.Error("[TERRA-API] error getting response from server", zap.Int("code", resp.StatusCode), zap.Any("response", string(serverError)))
-		err := fmt.Errorf("error getting response from server %d %s", resp.StatusCode, string(serverError))
-		fin <- err.Error()
-		return
-	}
+		q.Add("query", s.String())
+		q.Add("page", strconv.FormatUint(page, 10))
+		q.Add("per_page", strconv.FormatUint(perPage, 10))
+		req.URL.RawQuery = q.Encode()
 
-	rawRequestHTTPDuration.WithLabels("/tx_search", resp.Status).Observe(time.Since(now).Seconds())
+		resp, err := c.httpClient.Do(req)
+		c.logger.Debug("[TERRA-API] Request Time (/tx_search)", zap.Duration("duration", time.Now().Sub(now)))
+		if err != nil {
+			return txs, err
+		}
 
-	decoder := json.NewDecoder(resp.Body)
+		if resp.StatusCode > 399 { // ERROR
+			serverError, _ := ioutil.ReadAll(resp.Body)
+			c.logger.Error("[TERRA-API] error getting response from server", zap.Int("code", resp.StatusCode), zap.Any("response", string(serverError)))
+			return txs, fmt.Errorf("error getting response from server %d %s", resp.StatusCode, string(serverError))
+		}
 
-	result := &types.ResultTxSearch{}
-	if err = decoder.Decode(result); err != nil {
-		c.logger.Error("[TERRA-API] unable to decode result body", zap.Error(err))
-		err := fmt.Errorf("unable to decode result body %w", err)
-		fin <- err.Error()
-		return
-	}
+		rawRequestHTTPDuration.WithLabels("/tx_search", resp.Status).Observe(time.Since(now).Seconds())
 
-	if result.Error.Message != "" {
-		c.logger.Error("[TERRA-API] Error getting search", zap.Any("result", result.Error.Message))
-		err := fmt.Errorf("Error getting search: %s", result.Error.Message)
-		fin <- err.Error()
-		return
-	}
+		decoder := json.NewDecoder(resp.Body)
 
-	if result.TotalCount != "" {
+		result := &types.GetTxSearchResponse{}
+		if err = decoder.Decode(result); err != nil {
+			c.logger.Error("[TERRA-API] unable to decode result body", zap.Error(err))
+			return txs, fmt.Errorf("unable to decode result body %w", err)
+		}
+
+		if result.Error.Message != "" {
+			c.logger.Error("[TERRA-API] Error getting search", zap.Any("result", result.Error.Message))
+			return txs, fmt.Errorf("Error getting search: %s", result.Error.Message)
+		}
+
+		totalCount, err := strconv.ParseInt(result.Result.TotalCount, 10, 64)
 		if err != nil {
 			c.logger.Error("[TERRA-API] Error getting totalCount", zap.Error(err), zap.Any("result", result), zap.String("query", req.URL.RawQuery), zap.Any("request", r))
-			fin <- err.Error()
-			return
-		}
-	}
-
-	c.logger.Debug("[TERRA-API] Converting requests ", zap.Int("number", len(result.Txs)), zap.Int("blocks", len(blocks)))
-	err = RawToTransaction(c.logger, c.cdc, result.Txs, blocks, out)
-	if err != nil {
-		c.logger.Error("[TERRA-API] Error getting rawToTransaction", zap.Error(err))
-		fin <- err.Error()
-	}
-	c.logger.Debug("[TERRA-API] Converted all requests ")
-
-	fin <- ""
-
-	return
-}
-
-func RawToTransaction(logger *zap.Logger, cdc *amino.Codec, in []types.TxResponse, blocks map[uint64]structs.Block, out chan cStruct.OutResp) error {
-	readr := strings.NewReader("")
-	dec := json.NewDecoder(readr)
-	for _, txRaw := range in {
-		readr.Reset(txRaw.TxResult.Log)
-		lf := []types.LogFormat{}
-		txErr := TxLogError{}
-		if err := dec.Decode(&lf); err != nil {
-			// (lukanus): Try to fallback to known error format
-			dec = json.NewDecoder(readr) // (lukanus): reassign decoder in case of failure
-			txErr.Message = txRaw.TxResult.Log
+			return txs, err
 		}
 
-		tx, err := rawToTransaction(logger, cdc, txRaw, lf, txErr, blocks)
-		if err != nil {
-			return err
-		}
-		out <- tx
-	}
+		numberOfItemsInBlock.Add(float64(totalCount))
+		c.logger.Debug("[TERRA-API] Converting requests ", zap.Int("number", len(result.Result.Txs)))
 
-	return nil
-}
-
-func RawToTransactionCh(logger *zap.Logger, cdc *amino.Codec, wg *sync.WaitGroup, in <-chan types.TxResponse, blocks map[uint64]structs.Block, out chan cStruct.OutResp) {
-	readr := strings.NewReader("")
-	dec := json.NewDecoder(readr)
-	defer wg.Done()
-	var err error
-	for txRaw := range in {
-		lf := []types.LogFormat{}
-		txErr := TxLogError{}
-		if txRaw.TxResult.Log != "" {
-			readr.Reset(txRaw.TxResult.Log)
-			if err = dec.Decode(&lf); err != nil {
-				dec = json.NewDecoder(readr) // (lukanus): reassign decoder in case of failure
-
-				// (lukanus): Try to fallback to known error format
-				txErr.Message = txRaw.TxResult.Log
+		for _, txRaw := range result.Result.Txs {
+			tx, err := rawToTransaction(ctx, c.logger, c.cdc, txRaw)
+			if err != nil {
+				return nil, err
 			}
+
+			tx.BlockHash = block.Hash
+			tx.ChainID = block.ChainID
+			tx.Time = block.Time
+			txs = append(txs, tx)
 		}
-		tx, err := rawToTransaction(logger, cdc, txRaw, lf, txErr, blocks)
-		if err != nil {
-			logger.Error("[TERRA-API] Problem decoding raw transaction", zap.Error(err), zap.String("height", txRaw.Height), zap.String("hash", txRaw.Hash))
+
+		if totalCount <= int64(len(txs)) {
+			break
 		}
-		out <- tx
+		page++
 	}
+
+	c.logger.Debug("[TERRA-API] Converted all requests ", zap.Int("number", len(txs)), zap.Uint64("height", r.Height))
+	return txs, nil
 }
 
-func rawToTransaction(logger *zap.Logger, cdc *amino.Codec, txRaw types.TxResponse, txLog []types.LogFormat, txErr TxLogError, blocks map[uint64]structs.Block) (cStruct.OutResp, error) {
+func rawToTransaction(ctx context.Context, logger *zap.Logger, cdc *amino.Codec, txRaw types.TxResponse) (structs.Transaction, error) {
 	timer := metrics.NewTimer(transactionConversionDuration)
 	defer timer.ObserveDuration()
 
 	numberOfItemsTransactions.Inc()
 
 	tx := &auth.StdTx{}
+	lf := []types.LogFormat{}
+	txErr := TxLogError{}
+	readr := strings.NewReader("")
+	dec := json.NewDecoder(readr)
+	if txRaw.TxResult.Log != "" {
+		readr.Reset(txRaw.TxResult.Log)
+		if err := dec.Decode(&lf); err != nil {
+			dec = json.NewDecoder(readr) // (lukanus): reassign decoder in case of failure
+
+			// (lukanus): Try to fallback to known error format
+			txErr.Message = txRaw.TxResult.Log
+		}
+	}
+
 	txReader := strings.NewReader(txRaw.TxData)
 	base64Dec := base64.NewDecoder(base64.StdEncoding, txReader)
 
@@ -213,24 +170,18 @@ func rawToTransaction(logger *zap.Logger, cdc *amino.Codec, txRaw types.TxRespon
 		logger.Error("[TERRA-API] Problem parsing height", zap.Error(err), zap.String("height", txRaw.Height))
 	}
 
-	outTX := cStruct.OutResp{Type: "Transaction"}
-	block := blocks[hInt]
-
 	trans := structs.Transaction{
-		Hash:      txRaw.Hash,
-		Memo:      tx.GetMemo(),
-		Time:      block.Time,
-		BlockHash: block.Hash,
-		ChainID:   block.ChainID,
-		Height:    hInt,
+		Hash:   txRaw.Hash,
+		Memo:   tx.GetMemo(),
+		Height: hInt,
 	}
 	trans.GasWanted, err = strconv.ParseUint(txRaw.TxResult.GasWanted, 10, 64)
 	if err != nil {
-		outTX.Error = err
+		return trans, err
 	}
 	trans.GasUsed, err = strconv.ParseUint(txRaw.TxResult.GasUsed, 10, 64)
 	if err != nil {
-		outTX.Error = err
+		return trans, err
 	}
 
 	txReader.Seek(0, 0)
@@ -249,14 +200,10 @@ func rawToTransaction(logger *zap.Logger, cdc *amino.Codec, txRaw types.TxRespon
 		})
 	}
 
-	appendEvents(logger, &trans, tx, txLog, txErr)
+	appendEvents(logger, &trans, tx, lf, txErr)
 
-	outTX.Payload = trans
-
-	return outTX, nil
+	return trans, nil
 }
-
-// func rawToTransaction(logger *zap.Logger, cdc *amino.Codec, txRaw types.TxResponse, txLog []types.LogFormat, txErr TxLogError, blocks map[uint64]structs.Block) (cStruct.OutResp, error) {
 
 func appendEvents(logger *zap.Logger, trans *structs.Transaction, tx *auth.StdTx, txLog []types.LogFormat, txErr TxLogError) {
 	presentIndexes := map[string]bool{}

@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/cosmos/cosmos-sdk/types/rest"
-	"github.com/figment-networks/indexer-manager/structs"
+	"github.com/figment-networks/indexing-engine/structs"
 	"github.com/figment-networks/terra-worker/api/types"
 )
 
@@ -101,11 +101,11 @@ func (c *Client) GetAccountDelegations(ctx context.Context, params structs.Heigh
 			structs.Delegation{
 				Delegator: del.DelegatorAddress,
 				Validator: structs.Validator(del.ValidatorAddress),
-				Shares: structs.TransactionAmount{
+				Shares: structs.RewardAmount{
 					Numeric: shareInt,
 					Exp:     shareExp,
 				},
-				Balance: structs.TransactionAmount{
+				Balance: structs.RewardAmount{
 					Numeric:  amtInt,
 					Currency: del.Balance.Denom,
 					Exp:      amtExp,

@@ -88,7 +88,7 @@ type BlockID struct {
 	Hash string `json:"hash"`
 }
 
-// Block is cosmos block data
+// Block is terra block data
 type Block struct {
 	Header BlockHeader `json:"header"`
 }
@@ -107,7 +107,7 @@ type ResultTxSearch struct {
 	Error      Error        `json:"error"`
 }
 
-// GetTxSearchResponse cosmos response for search
+// GetTxSearchResponse terra response for search
 type GetTxSearchResponse struct {
 	//	ID     string         `json:"id"`
 	RPC    string         `json:"jsonrpc"`
@@ -115,12 +115,26 @@ type GetTxSearchResponse struct {
 	Error  Error          `json:"error"`
 }
 
-// GetBlockchainResponse cosmos response from blockchain
+// GetBlockchainResponse terra response from /blockchain
 type GetBlockchainResponse struct {
 	ID     string           `json:"id"`
 	RPC    string           `json:"jsonrpc"`
 	Result ResultBlockchain `json:"result"`
 	Error  Error            `json:"error"`
+}
+
+// GetBlockResponse terra response from /block
+
+type GetBlockResponse struct {
+	ID     string      `json:"id"`
+	RPC    string      `json:"jsonrpc"`
+	Result ResultBlock `json:"result"`
+	Error  Error       `json:"error"`
+}
+
+type ResultBlock struct {
+	Block   Block   `json:"block"`
+	BlockID BlockID `json:"block_id"`
 }
 
 type LogFormatLog struct {

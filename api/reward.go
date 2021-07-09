@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/figment-networks/indexer-manager/structs"
+	"github.com/figment-networks/indexing-engine/structs"
 	"github.com/figment-networks/terra-worker/api/types"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -20,7 +20,7 @@ const maxRetries = 3
 
 // GetReward fetches total rewards for delegator account
 func (c *Client) GetReward(ctx context.Context, params structs.HeightAccount) (resp structs.GetRewardResponse, err error) {
-	resp.Rewards = make(map[structs.Validator][]structs.TransactionAmount, 0)
+	resp.Rewards = make(map[structs.Validator][]structs.RewardAmount, 0)
 	resp.Height = params.Height
 
 	endpoint := fmt.Sprintf("/distribution/delegators/%v/rewards", params.Account)
@@ -86,11 +86,11 @@ func (c *Client) GetReward(ctx context.Context, params structs.HeightAccount) (r
 	}
 
 	for _, valReward := range result.Result.ValidatorRewards {
-		valRewards := make([]structs.TransactionAmount, 0, len(valReward.Rewards))
+		valRewards := make([]structs.RewardAmount, 0, len(valReward.Rewards))
 
 		for _, reward := range valReward.Rewards {
 			valRewards = append(valRewards,
-				structs.TransactionAmount{
+				structs.RewardAmount{
 					Text:     reward.Amount.String(),
 					Numeric:  reward.Amount.BigInt(),
 					Currency: reward.Denom,

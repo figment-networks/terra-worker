@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/figment-networks/indexer-manager/structs"
+	"github.com/figment-networks/indexing-engine/structs"
 	"github.com/figment-networks/terra-worker/api/types"
 
 	"github.com/tendermint/tendermint/libs/bech32"
