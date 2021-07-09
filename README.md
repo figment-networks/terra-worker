@@ -60,7 +60,7 @@ CHAIN_ID=columbus-4 \
 STORE_HTTP_ENDPOINTS=http://127.0.0.1:8986/input/jsonrpc \
 TERRA_RPC_ADDR=https://columbus-4--rpc--archive.datahub.figment.io \
 TERRA_LCD_ADDR=https://columbus-4--lcd--archive.datahub.figment.io \
-DATAHUB_KEY=4c5d92291d96977ba9833a4772aaf5b5 \
+DATAHUB_KEY={YOUR KEY HERE} \
 go run ./cmd/terra-worker
 ```
 ## Transaction Types
