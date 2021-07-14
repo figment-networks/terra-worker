@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strconv"
 	"sync"
 	"time"
 
+	"github.com/cosmos/cosmos-sdk/types/rest"
 	"github.com/figment-networks/indexing-engine/structs"
 	"github.com/figment-networks/terra-worker/api/types"
 )
@@ -57,15 +57,23 @@ func (c Client) GetBlock(ctx context.Context, params structs.HeightHash) (block 
 	rawRequestHTTPDuration.WithLabels("/block", resp.Status).Observe(time.Since(n).Seconds())
 	defer resp.Body.Close()
 
-	if c.chainID == "columbus-4" {
-		return decodeBlockColumbus4(resp.Body)
+	decoder := json.NewDecoder(resp.Body)
+
+	if resp.StatusCode > 399 {
+		var result rest.ErrorResponse
+		if err = decoder.Decode(&result); err != nil {
+			return block, fmt.Errorf("[TERRA-API] Error fetching block: status=%d", resp.StatusCode)
+		}
+		return block, fmt.Errorf("[TERRA-API] Error fetching block; status=%d err=%s ", resp.StatusCode, result.Error)
 	}
-	return decodeBlockColumbus3(resp.Body)
+
+	if c.chainID == "columbus-4" {
+		return decodeBlockColumbus4(decoder)
+	}
+	return decodeBlockColumbus3(decoder)
 }
 
-func decodeBlockColumbus4(respBody io.ReadCloser) (block structs.Block, err error) {
-	decoder := json.NewDecoder(respBody)
-
+func decodeBlockColumbus4(decoder *json.Decoder) (block structs.Block, err error) {
 	var result *types.GetBlockResponseV4
 	if err = decoder.Decode(&result); err != nil {
 		return block, err
@@ -95,9 +103,7 @@ func decodeBlockColumbus4(respBody io.ReadCloser) (block structs.Block, err erro
 	return
 }
 
-func decodeBlockColumbus3(respBody io.ReadCloser) (block structs.Block, err error) {
-	decoder := json.NewDecoder(respBody)
-
+func decodeBlockColumbus3(decoder *json.Decoder) (block structs.Block, err error) {
 	var result *types.GetBlockResponse
 	if err = decoder.Decode(&result); err != nil {
 		return block, err
