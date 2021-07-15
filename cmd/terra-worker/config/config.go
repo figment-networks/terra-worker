@@ -32,10 +32,11 @@ type Config struct {
 	ManagerInterval time.Duration `json:"manager_interval" envconfig:"MANAGER_INTERVAL" default:"10s"`
 	Hostname        string        `json:"hostname" envconfig:"HOSTNAME"`
 
-	TerraRPCAddr string `json:"terra_rpc_addr" envconfig:"TERRA_RPC_ADDR" required:"true"`
-	TerraLCDAddr string `json:"terra_lcd_addr" envconfig:"TERRA_LCD_ADDR" required:"true"`
-	DatahubKey   string `json:"datahub_key" envconfig:"DATAHUB_KEY"`
-	ChainID      string `json:"chain_id" envconfig:"CHAIN_ID"`
+	TerraRPCAddr   string `json:"terra_rpc_addr" envconfig:"TERRA_RPC_ADDR" required:"true"`
+	TerraLCDAddr   string `json:"terra_lcd_addr" envconfig:"TERRA_LCD_ADDR" required:"true"`
+	CosmosGRPCAddr string `json:"cosmos_grpc_addr" envconfig:"COSMOS_GRPC_ADDR"`
+	DatahubKey     string `json:"datahub_key" envconfig:"DATAHUB_KEY"`
+	ChainID        string `json:"chain_id" envconfig:"CHAIN_ID"`
 
 	MaximumHeightsToGet float64 `json:"maximum_heights_to_get" envconfig:"MAXIMUM_HEIGHTS_TO_GET" default:"10000"`
 	RequestsPerSecond   int64   `json:"requests_per_second" envconfig:"REQUESTS_PER_SECOND" default:"33"`
@@ -46,6 +47,9 @@ type Config struct {
 	// Rollbar
 	RollbarAccessToken string `json:"rollbar_access_token" envconfig:"ROLLBAR_ACCESS_TOKEN"`
 	RollbarServerRoot  string `json:"rollbar_server_root" envconfig:"ROLLBAR_SERVER_ROOT" default:"github.com/figment-networks/terra-worker"`
+
+	TimeoutBlockCall       time.Duration `json:"timeout_block_call" envconfig:"TIMEOUT_BLOCK_CALL" default:"30s"`
+	TimeoutTransactionCall time.Duration `json:"timeout_transaction_call" envconfig:"TIMEOUT_TRANSACTION_CALL" default:"30s"`
 }
 
 // FromFile reads the config from a file

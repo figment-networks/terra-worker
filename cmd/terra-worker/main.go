@@ -108,8 +108,28 @@ func main() {
 
 	grpcServer := grpc.NewServer()
 
-	rpcClient := api.NewClient(cfg.TerraRPCAddr, cfg.DatahubKey, cfg.ChainID, logger.GetLogger(), nil, int(cfg.RequestsPerSecond))
-	lcdClient := api.NewClient(cfg.TerraLCDAddr, cfg.DatahubKey, cfg.ChainID, logger.GetLogger(), nil, int(cfg.RequestsPerSecond))
+	if cfg.CosmosGRPCAddr == "" {
+		logger.Error(fmt.Errorf("cosmos grpc address is not set"))
+		return
+	}
+
+	grpcConn, dialErr := grpc.DialContext(ctx, cfg.CosmosGRPCAddr, grpc.WithInsecure())
+	if dialErr != nil {
+		logger.Error(fmt.Errorf("error dialing grpc: %w", dialErr))
+		return
+	}
+	defer grpcConn.Close()
+
+	rpcClient := api.NewClient(cfg.TerraRPCAddr, cfg.DatahubKey, cfg.ChainID, logger.GetLogger(), grpcConn, int(cfg.RequestsPerSecond), &api.ClientConfig{
+		ReqPerSecond:        int(cfg.RequestsPerSecond),
+		TimeoutBlockCall:    cfg.TimeoutBlockCall,
+		TimeoutSearchTxCall: cfg.TimeoutTransactionCall,
+	})
+	lcdClient := api.NewClient(cfg.TerraLCDAddr, cfg.DatahubKey, cfg.ChainID, logger.GetLogger(), grpcConn, int(cfg.RequestsPerSecond), &api.ClientConfig{
+		ReqPerSecond:        int(cfg.RequestsPerSecond),
+		TimeoutBlockCall:    cfg.TimeoutBlockCall,
+		TimeoutSearchTxCall: cfg.TimeoutTransactionCall,
+	})
 
 	storeEndpoints := strings.Split(cfg.StoreHTTPEndpoints, ",")
 	hStore := httpStore.NewHTTPStore(storeEndpoints, &http.Client{})
