@@ -145,8 +145,6 @@ func rawToTransaction(ctx context.Context, logger *zap.Logger, cdc *amino.Codec,
 	if txRaw.TxResult.Log != "" {
 		readr.Reset(txRaw.TxResult.Log)
 		if err := dec.Decode(&lf); err != nil {
-			dec = json.NewDecoder(readr) // (lukanus): reassign decoder in case of failure
-
 			// (lukanus): Try to fallback to known error format
 			txErr.Message = txRaw.TxResult.Log
 		}
