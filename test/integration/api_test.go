@@ -56,7 +56,7 @@ func TestGetAccountBalance(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
 			zl := zaptest.NewLogger(t)
-			capi := api.NewClient(tt.lcdAddr, tt.dataHubKey, zl, nil, 10)
+			capi := api.NewClient(tt.lcdAddr, tt.dataHubKey, "columbus-4", zl, nil, 10)
 			resp, err := capi.GetAccountBalance(ctx, tt.args)
 
 			if tt.wantErr {

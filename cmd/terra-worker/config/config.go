@@ -32,11 +32,9 @@ type Config struct {
 	ManagerInterval time.Duration `json:"manager_interval" envconfig:"MANAGER_INTERVAL" default:"10s"`
 	Hostname        string        `json:"hostname" envconfig:"HOSTNAME"`
 
-	TerraRPCAddr   string `json:"terra_rpc_addr" envconfig:"TERRA_RPC_ADDR" required:"true"`
-	TerraLCDAddr   string `json:"terra_lcd_addr" envconfig:"TERRA_LCD_ADDR" required:"true"`
-	CosmosGRPCAddr string `json:"cosmos_grpc_addr" envconfig:"COSMOS_GRPC_ADDR"`
-	DatahubKey     string `json:"datahub_key" envconfig:"DATAHUB_KEY"`
-	ChainID        string `json:"chain_id" envconfig:"CHAIN_ID"`
+	TerraGRPCAddr string `json:"terra_grpc_addr" envconfig:"TERRA_GRPC_ADDR" required:"true"`
+	DatahubKey    string `json:"datahub_key" envconfig:"DATAHUB_KEY"`
+	ChainID       string `json:"chain_id" envconfig:"CHAIN_ID"`
 
 	MaximumHeightsToGet float64 `json:"maximum_heights_to_get" envconfig:"MAXIMUM_HEIGHTS_TO_GET" default:"10000"`
 	RequestsPerSecond   int64   `json:"requests_per_second" envconfig:"REQUESTS_PER_SECOND" default:"33"`

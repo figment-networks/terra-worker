@@ -108,12 +108,12 @@ func main() {
 
 	grpcServer := grpc.NewServer()
 
-	if cfg.CosmosGRPCAddr == "" {
+	if cfg.TerraGRPCAddr == "" {
 		logger.Error(fmt.Errorf("cosmos grpc address is not set"))
 		return
 	}
 
-	grpcConn, dialErr := grpc.DialContext(ctx, cfg.CosmosGRPCAddr, grpc.WithInsecure())
+	grpcConn, dialErr := grpc.DialContext(ctx, cfg.TerraGRPCAddr, grpc.WithInsecure())
 	if dialErr != nil {
 		logger.Error(fmt.Errorf("error dialing grpc: %w", dialErr))
 		return
@@ -197,16 +197,12 @@ func initConfig(path string) (*config.Config, error) {
 		}
 	}
 
-	if cfg.TerraRPCAddr != "" && (cfg.ChainID == "columbus-3" || cfg.ChainID == "columbus-4") {
+	if cfg.TerraGRPCAddr != "" {
 		return cfg, nil
 	}
 
 	if err := config.FromEnv(cfg); err != nil {
 		return nil, err
-	}
-
-	if cfg.ChainID != "columbus-3" && cfg.ChainID != "columbus-4" {
-		return nil, fmt.Errorf("ChainID must be one of: columbus-3, columbus-4")
 	}
 
 	return cfg, nil
