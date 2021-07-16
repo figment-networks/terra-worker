@@ -1,5 +1,6 @@
 package api
 
+/*
 import (
 	"context"
 	"encoding/json"
@@ -206,3 +207,4 @@ func gettIntAndExp(s string) (*big.Int, int32, error) {
 	intgr.Mul(intgr, mltplr)
 	return intgr.Add(intgr, dec), exp, nil
 }
+*/

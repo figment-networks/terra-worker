@@ -1,5 +1,6 @@
 package api
 
+/*
 import (
 	"context"
 	"fmt"
@@ -93,3 +94,4 @@ func (c *Client) GetAccountBalance(ctx context.Context, params structs.HeightAcc
 
 	return resp, err
 }
+*/

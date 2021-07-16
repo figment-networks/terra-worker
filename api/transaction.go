@@ -141,7 +141,7 @@ func rawToTransaction(ctx context.Context, logger *zap.Logger, in *tx.Tx, resp *
 				}
 
 				logger.Error("[TERRA-API] Problem decoding transaction ", zap.Error(err), zap.String("type", tPath[1]), zap.String("route", m.TypeUrl), zap.Int64("height", resp.Height))
-				// return trans, err
+				return trans, err
 			}
 
 			trans.Events = append(trans.Events, tev)

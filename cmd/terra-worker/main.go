@@ -120,12 +120,7 @@ func main() {
 	}
 	defer grpcConn.Close()
 
-	rpcClient := api.NewClient(cfg.TerraRPCAddr, cfg.DatahubKey, cfg.ChainID, logger.GetLogger(), grpcConn, int(cfg.RequestsPerSecond), &api.ClientConfig{
-		ReqPerSecond:        int(cfg.RequestsPerSecond),
-		TimeoutBlockCall:    cfg.TimeoutBlockCall,
-		TimeoutSearchTxCall: cfg.TimeoutTransactionCall,
-	})
-	lcdClient := api.NewClient(cfg.TerraLCDAddr, cfg.DatahubKey, cfg.ChainID, logger.GetLogger(), grpcConn, int(cfg.RequestsPerSecond), &api.ClientConfig{
+	apiClient := api.NewClient(cfg.ChainID, logger.GetLogger(), grpcConn, &api.ClientConfig{
 		ReqPerSecond:        int(cfg.RequestsPerSecond),
 		TimeoutBlockCall:    cfg.TimeoutBlockCall,
 		TimeoutSearchTxCall: cfg.TimeoutTransactionCall,
@@ -133,7 +128,7 @@ func main() {
 
 	storeEndpoints := strings.Split(cfg.StoreHTTPEndpoints, ",")
 	hStore := httpStore.NewHTTPStore(storeEndpoints, &http.Client{})
-	workerClient := client.NewIndexerClient(ctx, logger.GetLogger(), lcdClient, rpcClient, hStore, uint64(cfg.MaximumHeightsToGet))
+	workerClient := client.NewIndexerClient(ctx, logger.GetLogger(), apiClient, hStore, uint64(cfg.MaximumHeightsToGet))
 
 	worker := grpcIndexer.NewIndexerServer(ctx, workerClient, logger.GetLogger())
 	grpcProtoIndexer.RegisterIndexerServiceServer(grpcServer, worker)

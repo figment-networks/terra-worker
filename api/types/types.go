@@ -3,8 +3,6 @@ package types
 import (
 	"bytes"
 	"encoding/json"
-
-	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 
 // TxResponse is result of querying for a tx
@@ -30,6 +28,7 @@ type TxTags struct {
 	Value string `json:"value"`
 }
 
+/*
 // RewardResponse is terra response for querying /rewards
 type RewardResponse struct {
 	Height string       `json:"height"`
@@ -45,6 +44,7 @@ type ValidatorReward struct {
 	Validator string       `json:"validator_address"`
 	Rewards   sdk.DecCoins `json:"reward"`
 }
+*/
 
 // DelegationResponse is terra response for querying /delegations
 type DelegationResponse struct {
@@ -83,7 +83,7 @@ type GetTxSearchResponse struct {
 // GetBlockResponse terra response from /block
 
 type GetBlockResponse struct {
-	ID     string      `json:"id"`
+	// ID     string      `json:"id"`
 	RPC    string      `json:"jsonrpc"`
 	Result ResultBlock `json:"result"`
 	Error  Error       `json:"error"`

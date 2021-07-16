@@ -19,7 +19,7 @@ import (
 	"github.com/figment-networks/terra-worker/api"
 )
 
-//go:generate mockgen -destination=./mocks/mock_client.go -package=mocks -imports github.com/tendermint/go-amino github.com/figment-networks/terra-worker/client RPC
+//go:generate mockgen -destination=./mocks/mock_client.go -package=mocks -imports github.com/tendermint/go-amino github.com/figment-networks/terra-worker/client GRPC
 
 const page = 100
 const blockchainEndpointLimit = 20
@@ -32,20 +32,16 @@ var (
 	getAccountDelegationsDuration *metrics.GroupObserver
 )
 
-type RPC interface {
-	GetBlock(ctx context.Context, params structs.HeightHash) (block structs.Block, err error)
+type GRPC interface {
+	GetBlock(ctx context.Context, params structs.HeightHash) (block structs.Block, er error)
 	SearchTx(ctx context.Context, r structs.HeightHash, block structs.Block, perPage uint64) (txs []structs.Transaction, err error)
-}
-
-type LCD interface {
-	GetReward(ctx context.Context, params structs.HeightAccount) (resp structs.GetRewardResponse, err error)
-	GetAccountBalance(ctx context.Context, params structs.HeightAccount) (resp structs.GetAccountBalanceResponse, err error)
-	GetAccountDelegations(ctx context.Context, params structs.HeightAccount) (resp structs.GetAccountDelegationsResponse, err error)
+	// GetReward(ctx context.Context, params structs.HeightAccount) (resp structs.GetRewardResponse, err error)
+	// GetAccountBalance(ctx context.Context, params structs.HeightAccount) (resp structs.GetAccountBalanceResponse, err error)
+	// GetAccountDelegations(ctx context.Context, params structs.HeightAccount) (resp structs.GetAccountDelegationsResponse, err error)
 }
 
 type IndexerClient struct {
-	lcd LCD
-	rpc RPC
+	grpc GRPC
 
 	logger  *zap.Logger
 	streams map[uuid.UUID]*cStructs.StreamAccess
@@ -56,7 +52,7 @@ type IndexerClient struct {
 	maximumHeightsToGet uint64
 }
 
-func NewIndexerClient(ctx context.Context, logger *zap.Logger, lcdCli LCD, rpcCli RPC, storeClient store.SearchStoreCaller, maximumHeightsToGet uint64) *IndexerClient {
+func NewIndexerClient(ctx context.Context, logger *zap.Logger, grpcCli GRPC, storeClient store.SearchStoreCaller, maximumHeightsToGet uint64) *IndexerClient {
 	getTransactionDuration = endpointDuration.WithLabels("getTransactions")
 	getLatestDuration = endpointDuration.WithLabels("getLatest")
 	getBlockDuration = endpointDuration.WithLabels("getBlock")
@@ -65,8 +61,7 @@ func NewIndexerClient(ctx context.Context, logger *zap.Logger, lcdCli LCD, rpcCl
 	api.InitMetrics()
 
 	ic := &IndexerClient{
-		rpc:                 rpcCli,
-		lcd:                 lcdCli,
+		grpc:                grpcCli,
 		logger:              logger,
 		storeClient:         storeClient,
 		maximumHeightsToGet: maximumHeightsToGet,
@@ -121,15 +116,18 @@ func (ic *IndexerClient) Run(ctx context.Context, stream *cStructs.StreamAccess)
 			nCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 			switch taskRequest.Type {
 			case mStructs.ReqIDGetTransactions:
-				ic.GetTransactions(nCtx, taskRequest, stream, ic.rpc)
+				ic.GetTransactions(nCtx, taskRequest, stream, ic.grpc)
 			case mStructs.ReqIDGetLatestMark:
-				ic.GetLatestMark(nCtx, taskRequest, stream, ic.rpc)
-			case mStructs.ReqIDGetReward:
-				ic.GetReward(nCtx, taskRequest, stream, ic.lcd)
-			case mStructs.ReqIDAccountBalance:
-				ic.GetAccountBalance(nCtx, taskRequest, stream, ic.lcd)
-			case mStructs.ReqIDAccountDelegations:
-				ic.GetAccountDelegations(nCtx, taskRequest, stream, ic.lcd)
+				ic.GetLatestMark(nCtx, taskRequest, stream, ic.grpc)
+			// these requests aren't currently handled by indexer-manager v0.4.1
+			/*
+				case mStructs.ReqIDGetReward:
+					ic.GetReward(nCtx, taskRequest, stream, ic.lcd)
+				case mStructs.ReqIDAccountBalance:
+					ic.GetAccountBalance(nCtx, taskRequest, stream, ic.lcd)
+				case mStructs.ReqIDAccountDelegations:
+					ic.GetAccountDelegations(nCtx, taskRequest, stream, ic.lcd)
+			*/
 			default:
 				stream.Send(cStructs.TaskResponse{
 					Id:    taskRequest.Id,
@@ -144,7 +142,7 @@ func (ic *IndexerClient) Run(ctx context.Context, stream *cStructs.StreamAccess)
 }
 
 // GetTransactions gets new transactions and blocks from terra for given range
-func (ic *IndexerClient) GetTransactions(ctx context.Context, tr cStructs.TaskRequest, stream *cStructs.StreamAccess, client RPC) {
+func (ic *IndexerClient) GetTransactions(ctx context.Context, tr cStructs.TaskRequest, stream *cStructs.StreamAccess, client GRPC) {
 	timer := metrics.NewTimer(getTransactionDuration)
 	defer timer.ObserveDuration()
 
@@ -255,6 +253,7 @@ SendLoop:
 
 }
 
+/*
 // GetReward gets reward
 func (ic *IndexerClient) GetReward(ctx context.Context, tr cStructs.TaskRequest, stream *cStructs.StreamAccess, client LCD) {
 	timer := metrics.NewTimer(getBlockDuration)
@@ -377,3 +376,4 @@ func (ic *IndexerClient) GetAccountDelegations(ctx context.Context, tr cStructs.
 
 	sendResp(ctx, tr.Id, out, ic.logger, stream, nil)
 }
+*/

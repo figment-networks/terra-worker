@@ -1,13 +1,15 @@
 package integration
 
+/*
 import (
 	"context"
 	"errors"
-	"github.com/figment-networks/indexer-manager/structs"
-	"github.com/figment-networks/terra-worker/api"
-	"github.com/stretchr/testify/require"
 	"math/big"
 	"testing"
+
+	"github.com/figment-networks/indexing-engine/structs"
+	"github.com/figment-networks/terra-worker/api"
+	"github.com/stretchr/testify/require"
 
 	"go.uber.org/zap/zaptest"
 )
@@ -82,3 +84,4 @@ func TestGetAccountBalance(t *testing.T) {
 		})
 	}
 }
+*/
