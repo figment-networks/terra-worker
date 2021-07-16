@@ -4,21 +4,19 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
-	"math"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/tendermint/go-amino"
 	"go.uber.org/zap"
 
-	"github.com/figment-networks/indexing-engine/metrics"
-
-	"github.com/figment-networks/indexer-manager/structs"
+	mStructs "github.com/figment-networks/indexer-manager/structs"
 	cStructs "github.com/figment-networks/indexer-manager/worker/connectivity/structs"
+	"github.com/figment-networks/indexing-engine/metrics"
+	"github.com/figment-networks/indexing-engine/structs"
+	"github.com/figment-networks/indexing-engine/worker/process/ranged"
+	"github.com/figment-networks/indexing-engine/worker/store"
 	"github.com/figment-networks/terra-worker/api"
-	"github.com/figment-networks/terra-worker/api/types"
 )
 
 //go:generate mockgen -destination=./mocks/mock_client.go -package=mocks -imports github.com/tendermint/go-amino github.com/figment-networks/terra-worker/client RPC
@@ -35,9 +33,8 @@ var (
 )
 
 type RPC interface {
-	CDC() *amino.Codec
-	SingularHeightWorker(ctx context.Context, wg *sync.WaitGroup, out chan types.TxResponse, in chan api.ToGet)
-	GetBlocksMeta(ctx context.Context, params structs.HeightRange, limit uint64, blocks *api.BlocksMap, end chan<- error)
+	GetBlock(ctx context.Context, params structs.HeightHash) (block structs.Block, err error)
+	SearchTx(ctx context.Context, r structs.HeightHash, block structs.Block, perPage uint64) (txs []structs.Transaction, err error)
 }
 
 type LCD interface {
@@ -54,11 +51,12 @@ type IndexerClient struct {
 	streams map[uuid.UUID]*cStructs.StreamAccess
 	sLock   sync.Mutex
 
-	bigPage             uint64
+	Reqester            *ranged.RangeRequester
+	storeClient         store.SearchStoreCaller
 	maximumHeightsToGet uint64
 }
 
-func NewIndexerClient(ctx context.Context, logger *zap.Logger, lcdCli LCD, rpcCli RPC, bigPage, maximumHeightsToGet uint64) *IndexerClient {
+func NewIndexerClient(ctx context.Context, logger *zap.Logger, lcdCli LCD, rpcCli RPC, storeClient store.SearchStoreCaller, maximumHeightsToGet uint64) *IndexerClient {
 	getTransactionDuration = endpointDuration.WithLabels("getTransactions")
 	getLatestDuration = endpointDuration.WithLabels("getLatest")
 	getBlockDuration = endpointDuration.WithLabels("getBlock")
@@ -66,14 +64,17 @@ func NewIndexerClient(ctx context.Context, logger *zap.Logger, lcdCli LCD, rpcCl
 	getAccountDelegationsDuration = endpointDuration.WithLabels("getAccountDelegations")
 	api.InitMetrics()
 
-	return &IndexerClient{
+	ic := &IndexerClient{
 		rpc:                 rpcCli,
 		lcd:                 lcdCli,
 		logger:              logger,
-		bigPage:             bigPage,
+		storeClient:         storeClient,
 		maximumHeightsToGet: maximumHeightsToGet,
 		streams:             make(map[uuid.UUID]*cStructs.StreamAccess),
 	}
+
+	ic.Reqester = ranged.NewRangeRequester(ic, 20)
+	return ic
 }
 
 // CloseStream removes stream from worker/client
@@ -119,15 +120,15 @@ func (ic *IndexerClient) Run(ctx context.Context, stream *cStructs.StreamAccess)
 			receivedRequestsMetric.WithLabels(taskRequest.Type).Inc()
 			nCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 			switch taskRequest.Type {
-			case structs.ReqIDGetTransactions:
+			case mStructs.ReqIDGetTransactions:
 				ic.GetTransactions(nCtx, taskRequest, stream, ic.rpc)
-			case structs.ReqIDLatestData:
-				ic.GetLatest(nCtx, taskRequest, stream, ic.rpc)
-			case structs.ReqIDGetReward:
+			case mStructs.ReqIDGetLatestMark:
+				ic.GetLatestMark(nCtx, taskRequest, stream, ic.rpc)
+			case mStructs.ReqIDGetReward:
 				ic.GetReward(nCtx, taskRequest, stream, ic.lcd)
-			case structs.ReqIDAccountBalance:
+			case mStructs.ReqIDAccountBalance:
 				ic.GetAccountBalance(nCtx, taskRequest, stream, ic.lcd)
-			case structs.ReqIDAccountDelegations:
+			case mStructs.ReqIDAccountDelegations:
 				ic.GetAccountDelegations(nCtx, taskRequest, stream, ic.lcd)
 			default:
 				stream.Send(cStructs.TaskResponse{
@@ -142,6 +143,7 @@ func (ic *IndexerClient) Run(ctx context.Context, stream *cStructs.StreamAccess)
 
 }
 
+// GetTransactions gets new transactions and blocks from terra for given range
 func (ic *IndexerClient) GetTransactions(ctx context.Context, tr cStructs.TaskRequest, stream *cStructs.StreamAccess, client RPC) {
 	timer := metrics.NewTimer(getTransactionDuration)
 	defer timer.ObserveDuration()
@@ -157,7 +159,6 @@ func (ic *IndexerClient) GetTransactions(ctx context.Context, tr cStructs.TaskRe
 		})
 		return
 	}
-
 	if hr.EndHeight == 0 {
 		stream.Send(cStructs.TaskResponse{
 			Id:    tr.Id,
@@ -167,53 +168,29 @@ func (ic *IndexerClient) GetTransactions(ctx context.Context, tr cStructs.TaskRe
 		return
 	}
 
-	sCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	ic.logger.Debug("[TERRA-CLIENT] Getting Range", zap.Stringer("taskID", tr.Id), zap.Uint64("start", hr.StartHeight), zap.Uint64("end", hr.EndHeight))
 
-	out := make(chan cStructs.OutResp, page*2+1)
-	fin := make(chan bool, 2)
-
-	go sendResp(sCtx, tr.Id, out, ic.logger, stream, fin)
-
-	var i uint64
-	for {
-		hrInner := structs.HeightRange{
-			StartHeight: hr.StartHeight + i*uint64(ic.bigPage),
-			EndHeight:   hr.StartHeight + i*uint64(ic.bigPage) + uint64(ic.bigPage) - 1,
-			Network:     hr.Network,
-			ChainID:     hr.ChainID,
-		}
-		if hrInner.EndHeight > hr.EndHeight {
-			hrInner.EndHeight = hr.EndHeight
-		}
-
-		if err := getRangeSingular(sCtx, ic.logger, client, hrInner, out); err != nil {
-			stream.Send(cStructs.TaskResponse{
-				Id:    tr.Id,
-				Error: cStructs.TaskError{Msg: err.Error()},
-				Final: true,
-			})
-			ic.logger.Error("[TERRA-CLIENT] Error getting range (Get Transactions) ", zap.Error(err), zap.Stringer("taskID", tr.Id))
-			return
-		}
-		i++
-		if hrInner.EndHeight == hr.EndHeight {
-			break
-		}
+	heights, err := ic.Reqester.GetRange(ctx, *hr)
+	resp := &cStructs.TaskResponse{
+		Id:    tr.Id,
+		Type:  "Heights",
+		Final: true,
 	}
-
-	ic.logger.Debug("[TERRA-CLIENT] Received all", zap.Stringer("taskID", tr.Id))
-	close(out)
-
-	for {
-		select {
-		case <-sCtx.Done():
-			return
-		case <-fin:
-			ic.logger.Debug("[TERRA-CLIENT] Finished sending all", zap.Stringer("taskID", tr.Id))
-			return
-		}
+	if heights.NumberOfHeights > 0 {
+		resp.Payload, _ = json.Marshal(heights)
 	}
+	if err != nil {
+		resp.Error = cStructs.TaskError{Msg: err.Error()}
+		ic.logger.Error("[TERRA-CLIENT] Error getting range (Get Transactions) ", zap.Error(err), zap.Stringer("taskID", tr.Id))
+		if err := stream.Send(*resp); err != nil {
+			ic.logger.Error("[TERRA-CLIENT] Error sending message (Get Transactions) ", zap.Error(err), zap.Stringer("taskID", tr.Id))
+		}
+		return
+	}
+	if err := stream.Send(*resp); err != nil {
+		ic.logger.Error("[TERRA-CLIENT] Error sending message (Get Transactions) ", zap.Error(err), zap.Stringer("taskID", tr.Id))
+	}
+	ic.logger.Debug("[TERRA-CLIENT] Finished sending all", zap.Stringer("taskID", tr.Id), zap.Any("heights", hr))
 }
 
 // sendResp sends responses to out channel preparing
@@ -275,140 +252,6 @@ SendLoop:
 		}
 		close(fin)
 	}
-
-}
-
-// GetLatest gets latest transactions and blocks.
-// It gets latest transaction, then diff it with
-func (ic *IndexerClient) GetLatest(ctx context.Context, tr cStructs.TaskRequest, stream *cStructs.StreamAccess, client RPC) {
-	timer := metrics.NewTimer(getLatestDuration)
-	defer timer.ObserveDuration()
-
-	ldr := &structs.LatestDataRequest{}
-	err := json.Unmarshal(tr.Payload, ldr)
-	if err != nil {
-		stream.Send(cStructs.TaskResponse{Id: tr.Id, Error: cStructs.TaskError{Msg: "Cannot unmarshal payment"}, Final: true})
-	}
-
-	sCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	batchesCtrl := make(chan error, 2)
-	defer close(batchesCtrl)
-	blocksAll := &api.BlocksMap{Blocks: map[uint64]structs.Block{}}
-
-	// get latest blocks
-	client.GetBlocksMeta(sCtx, structs.HeightRange{
-		Network: ldr.Network,
-		ChainID: ldr.ChainID,
-	}, blockchainEndpointLimit, blocksAll, batchesCtrl)
-
-	if err := <-batchesCtrl; err != nil {
-		stream.Send(cStructs.TaskResponse{
-			Id:    tr.Id,
-			Error: cStructs.TaskError{Msg: err.Error()},
-			Final: true,
-		})
-		return
-	}
-
-	startingHeight := getStartingHeight(ldr.LastHeight, ic.maximumHeightsToGet, blocksAll.EndHeight)
-	if startingHeight <= blocksAll.StartHeight {
-		var i, responses uint64
-		for {
-			bhr := structs.HeightRange{
-				StartHeight: startingHeight + i*uint64(blockchainEndpointLimit),
-				EndHeight:   startingHeight + i*uint64(blockchainEndpointLimit) + uint64(blockchainEndpointLimit) - 1,
-				Network:     ldr.Network,
-				ChainID:     ldr.ChainID,
-			}
-
-			if bhr.EndHeight > blocksAll.StartHeight {
-				bhr.EndHeight = blocksAll.StartHeight
-			}
-
-			ic.logger.Debug("[TERRA-CLIENT] Getting blocks for ", zap.Uint64("end", bhr.EndHeight), zap.Uint64("start", bhr.StartHeight))
-			go client.GetBlocksMeta(ctx, bhr, blockchainEndpointLimit, blocksAll, batchesCtrl)
-			i++
-			if bhr.EndHeight == blocksAll.StartHeight {
-				break
-			}
-		}
-
-		var errors = []error{}
-		for err := range batchesCtrl {
-			responses++
-			if err != nil {
-				errors = append(errors, err)
-			}
-			if responses == i {
-				break
-			}
-		}
-
-		if len(errors) > 0 {
-			errString := ""
-			for _, err := range errors {
-				errString += err.Error() + " , "
-			}
-
-			stream.Send(cStructs.TaskResponse{
-				Id:    tr.Id,
-				Error: cStructs.TaskError{Msg: fmt.Sprintf("Errors Getting Blocks: - %s ", errString)},
-				Final: true,
-			})
-			return
-		}
-	}
-
-	out := make(chan cStructs.OutResp, page)
-	fin := make(chan bool, 2)
-	// (lukanus): in separate goroutine take transaction format wrap it in transport message and send
-	go sendResp(sCtx, tr.Id, out, ic.logger, stream, fin)
-
-	convertWG := &sync.WaitGroup{}
-	txIn := make(chan types.TxResponse, 20)
-	convertWG.Add(1)
-	go api.RawToTransactionCh(ic.logger, client.CDC(), convertWG, txIn, blocksAll.Blocks, out)
-
-	httpReqWG := &sync.WaitGroup{}
-	toGet := make(chan api.ToGet, 10)
-	for i := 0; i < 5; i++ {
-		httpReqWG.Add(1)
-		go client.SingularHeightWorker(ctx, httpReqWG, txIn, toGet)
-	}
-
-	for h, block := range blocksAll.Blocks {
-		// (lukanus): skip processing blocks before given range
-		// we take blocks by 20
-		if blocksAll.StartHeight < block.Height {
-			continue
-		}
-
-		out <- cStructs.OutResp{
-			Type:    "Block",
-			Payload: block,
-		}
-
-		if block.NumberOfTransactions > 0 {
-			toBeDone := int(math.Ceil(float64(block.NumberOfTransactions) / float64(page)))
-			for i := 0; i < toBeDone; i++ {
-				toGet <- api.ToGet{
-					Height:  h,
-					Page:    i + 1,
-					PerPage: page,
-				}
-			}
-		}
-	}
-
-	close(toGet)
-	httpReqWG.Wait()
-	close(txIn)
-	convertWG.Wait()
-
-	ic.logger.Debug("[TERRA-CLIENT] Received all", zap.Stringer("taskID", tr.Id))
-	close(out)
 
 }
 
@@ -533,111 +376,4 @@ func (ic *IndexerClient) GetAccountDelegations(ctx context.Context, tr cStructs.
 	close(out)
 
 	sendResp(ctx, tr.Id, out, ic.logger, stream, nil)
-}
-
-// getRange gets given range of blocks and transactions
-func getRangeSingular(ctx context.Context, logger *zap.Logger, client RPC, hr structs.HeightRange, out chan cStructs.OutResp) error {
-	defer logger.Sync()
-
-	batchesCtrl := make(chan error, 2)
-	defer close(batchesCtrl)
-	blocksAll := &api.BlocksMap{Blocks: map[uint64]structs.Block{}}
-
-	var i uint64
-	for {
-		bhr := structs.HeightRange{
-			StartHeight: hr.StartHeight + i*uint64(blockchainEndpointLimit),
-			EndHeight:   hr.StartHeight + i*uint64(blockchainEndpointLimit) + uint64(blockchainEndpointLimit) - 1,
-			Network:     hr.Network,
-			ChainID:     hr.ChainID,
-		}
-
-		if bhr.EndHeight > hr.EndHeight {
-			bhr.EndHeight = hr.EndHeight
-		}
-
-		logger.Debug("[TERRA-CLIENT] Getting blocks for ", zap.Uint64("end", bhr.EndHeight), zap.Uint64("start", bhr.StartHeight))
-		go client.GetBlocksMeta(ctx, bhr, 0, blocksAll, batchesCtrl)
-		i++
-		if bhr.EndHeight == hr.EndHeight {
-			break
-		}
-	}
-
-	var responses uint64
-	var errors = []error{}
-	for err := range batchesCtrl {
-		responses++
-		if err != nil {
-			errors = append(errors, err)
-		}
-		if responses == i {
-			break
-		}
-	}
-
-	if len(errors) > 0 {
-		errString := ""
-		for _, err := range errors {
-			errString += err.Error() + " , "
-		}
-		return fmt.Errorf("Errors Getting Blocks: - %s ", errString)
-	}
-
-	convertWG := &sync.WaitGroup{}
-	txIn := make(chan types.TxResponse, 20)
-	convertWG.Add(1)
-	go api.RawToTransactionCh(logger, client.CDC(), convertWG, txIn, blocksAll.Blocks, out)
-
-	httpReqWG := &sync.WaitGroup{}
-	toGet := make(chan api.ToGet, 10)
-	for i := 0; i < 5; i++ {
-		httpReqWG.Add(1)
-		go client.SingularHeightWorker(ctx, httpReqWG, txIn, toGet)
-	}
-
-	for h, block := range blocksAll.Blocks {
-		out <- cStructs.OutResp{
-			Type:    "Block",
-			Payload: block,
-		}
-
-		if block.NumberOfTransactions > 0 {
-			toBeDone := int(math.Ceil(float64(block.NumberOfTransactions) / float64(page)))
-			for i := 0; i < toBeDone; i++ {
-				toGet <- api.ToGet{
-					Height:  h,
-					Page:    i + 1,
-					PerPage: page,
-				}
-			}
-		}
-	}
-
-	close(toGet)
-	httpReqWG.Wait()
-	close(txIn)
-	convertWG.Wait()
-
-	return nil
-}
-
-// getStartingHeight - based current state
-func getStartingHeight(lastHeight, maximumHeightsToGet, blockHeightFromChain uint64) (startingHeight uint64) {
-	// (lukanus): When nothing is scraped we want to get only X number of last requests
-	if lastHeight == 0 {
-		lastX := blockHeightFromChain - maximumHeightsToGet
-		if lastX > 0 {
-			return lastX
-		}
-	}
-
-	if maximumHeightsToGet < blockHeightFromChain-lastHeight {
-		if maximumHeightsToGet > blockHeightFromChain {
-			return 0
-		}
-		return blockHeightFromChain - maximumHeightsToGet
-	}
-
-	return lastHeight
 }

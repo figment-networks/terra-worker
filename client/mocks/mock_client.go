@@ -6,7 +6,7 @@ package mocks
 
 import (
 	context "context"
-	structs "github.com/figment-networks/indexer-manager/structs"
+	structs "github.com/figment-networks/indexing-engine/structs"
 	api "github.com/figment-networks/terra-worker/api"
 	types "github.com/figment-networks/terra-worker/api/types"
 	gomock "github.com/golang/mock/gomock"

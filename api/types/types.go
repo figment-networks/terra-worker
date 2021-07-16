@@ -53,46 +53,11 @@ type DelegationResponse struct {
 }
 
 type Delegation struct {
-	DelegatorAddress string  `json:"delegator_address"`
-	ValidatorAddress string  `json:"validator_address"`
-	Shares           string  `json:"shares"`
-	Balance          Balance `json:"balance"`
+	DelegatorAddress string `json:"delegator_address"`
+	ValidatorAddress string `json:"validator_address"`
+	Shares           string `json:"shares"`
+	Balance          string `json:"balance"`
 }
-
-type Balance struct {
-	Denom  string `json:"denom"`
-	Amount string `json:"amount"`
-}
-
-type BlockHeader struct {
-	Height  string `json:"height"`
-	ChainID string `json:"chain_id"`
-	Time    string `json:"time"`
-	NumTxs  string `json:"num_txs"`
-}
-
-// ResultBlockchain is result of fetching block
-type ResultBlockchain struct {
-	LastHeight string      `json:"last_height"`
-	BlockMetas []BlockMeta `json:"block_metas"`
-}
-
-// BlockMeta is block metadata
-type BlockMeta struct {
-	BlockID BlockID     `json:"block_id"`
-	Header  BlockHeader `json:"header"`
-}
-
-// BlockID info
-type BlockID struct {
-	Hash string `json:"hash"`
-}
-
-// Block is cosmos block data
-type Block struct {
-	Header BlockHeader `json:"header"`
-}
-
 type Error struct {
 	Code      int    `json:"code"`
 	CodeSpace string `json:"codespace"`
@@ -107,7 +72,7 @@ type ResultTxSearch struct {
 	Error      Error        `json:"error"`
 }
 
-// GetTxSearchResponse cosmos response for search
+// GetTxSearchResponse terra response for search
 type GetTxSearchResponse struct {
 	//	ID     string         `json:"id"`
 	RPC    string         `json:"jsonrpc"`
@@ -115,12 +80,39 @@ type GetTxSearchResponse struct {
 	Error  Error          `json:"error"`
 }
 
-// GetBlockchainResponse cosmos response from blockchain
-type GetBlockchainResponse struct {
-	ID     string           `json:"id"`
-	RPC    string           `json:"jsonrpc"`
-	Result ResultBlockchain `json:"result"`
-	Error  Error            `json:"error"`
+// GetBlockResponse terra response from /block
+
+type GetBlockResponse struct {
+	ID     string      `json:"id"`
+	RPC    string      `json:"jsonrpc"`
+	Result ResultBlock `json:"result"`
+	Error  Error       `json:"error"`
+}
+
+type ResultBlock struct {
+	Block     Block     `json:"block"`
+	BlockMeta BlockMeta `json:"block_meta"`
+}
+
+type BlockMeta struct {
+	BlockID BlockID `json:"block_id"`
+}
+
+type BlockHeader struct {
+	Height  string `json:"height"`
+	ChainID string `json:"chain_id"`
+	Time    string `json:"time"`
+	NumTxs  string `json:"num_txs"`
+}
+
+// Block is terra block data
+type Block struct {
+	Header BlockHeader `json:"header"`
+}
+
+// BlockID info
+type BlockID struct {
+	Hash string `json:"hash"`
 }
 
 type LogFormatLog struct {

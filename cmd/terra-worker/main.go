@@ -17,18 +17,17 @@ import (
 	"go.uber.org/zap"
 	grpc "google.golang.org/grpc"
 
+	"github.com/figment-networks/indexer-manager/worker/connectivity"
+	grpcIndexer "github.com/figment-networks/indexer-manager/worker/transport/grpc"
+	grpcProtoIndexer "github.com/figment-networks/indexer-manager/worker/transport/grpc/indexer"
+	"github.com/figment-networks/indexing-engine/health"
+	"github.com/figment-networks/indexing-engine/metrics"
+	"github.com/figment-networks/indexing-engine/metrics/prometheusmetrics"
+	httpStore "github.com/figment-networks/indexing-engine/worker/store/transport/http"
 	"github.com/figment-networks/terra-worker/api"
 	"github.com/figment-networks/terra-worker/client"
 	"github.com/figment-networks/terra-worker/cmd/common/logger"
 	"github.com/figment-networks/terra-worker/cmd/terra-worker/config"
-
-	"github.com/figment-networks/indexer-manager/worker/connectivity"
-	grpcIndexer "github.com/figment-networks/indexer-manager/worker/transport/grpc"
-	grpcProtoIndexer "github.com/figment-networks/indexer-manager/worker/transport/grpc/indexer"
-
-	"github.com/figment-networks/indexing-engine/health"
-	"github.com/figment-networks/indexing-engine/metrics"
-	"github.com/figment-networks/indexing-engine/metrics/prometheusmetrics"
 )
 
 type flags struct {
@@ -109,21 +108,23 @@ func main() {
 
 	grpcServer := grpc.NewServer()
 
-	rpcClient := api.NewClient(cfg.TerraRPCAddr, cfg.DatahubKey, logger.GetLogger(), nil, int(cfg.RequestsPerSecond))
-	lcdClient := api.NewClient(cfg.TerraLCDAddr, cfg.DatahubKey, logger.GetLogger(), nil, int(cfg.RequestsPerSecond))
-	workerClient := client.NewIndexerClient(ctx, logger.GetLogger(), lcdClient, rpcClient, uint64(cfg.BigPage), uint64(cfg.MaximumHeightsToGet))
+	rpcClient := api.NewClient(cfg.TerraRPCAddr, cfg.DatahubKey, cfg.ChainID, logger.GetLogger(), nil, int(cfg.RequestsPerSecond))
+	lcdClient := api.NewClient(cfg.TerraLCDAddr, cfg.DatahubKey, cfg.ChainID, logger.GetLogger(), nil, int(cfg.RequestsPerSecond))
+
+	storeEndpoints := strings.Split(cfg.StoreHTTPEndpoints, ",")
+	hStore := httpStore.NewHTTPStore(storeEndpoints, &http.Client{})
+	workerClient := client.NewIndexerClient(ctx, logger.GetLogger(), lcdClient, rpcClient, hStore, uint64(cfg.MaximumHeightsToGet))
 
 	worker := grpcIndexer.NewIndexerServer(ctx, workerClient, logger.GetLogger())
 	grpcProtoIndexer.RegisterIndexerServiceServer(grpcServer, worker)
 
 	mux := http.NewServeMux()
 	attachProfiling(mux)
+	attachDynamic(ctx, mux)
 
 	monitor := &health.Monitor{}
 	go monitor.RunChecks(ctx, cfg.HealthCheckInterval)
 	monitor.AttachHttp(mux)
-
-	attachDynamic(ctx, mux)
 
 	mux.Handle("/metrics", metrics.Handler())
 
@@ -145,15 +146,25 @@ func main() {
 RunLoop:
 	for {
 		select {
-		case <-osSig:
+		case sig := <-osSig:
+			logger.Info("Stopping worker... ", zap.String("signal", sig.String()))
 			cancel()
+			logger.Info("Canceled context, gracefully stopping grpc")
 			grpcServer.Stop()
-			s.Shutdown(ctx)
+			logger.Info("Stopped grpc, stopping http")
+			err := s.Shutdown(ctx)
+			if err != nil {
+				logger.GetLogger().Error("Error stopping http server ", zap.Error(err))
+			}
 			break RunLoop
 		case k := <-exit:
+			logger.Info("Stopping worker... ", zap.String("reason", k))
 			cancel()
 			if k == "grpc" { // (lukanus): when grpc is finished, stop http and vice versa
-				s.Shutdown(ctx)
+				err := s.Shutdown(ctx)
+				if err != nil {
+					logger.GetLogger().Error("Error stopping http server ", zap.Error(err))
+				}
 			} else {
 				grpcServer.Stop()
 			}
@@ -171,12 +182,16 @@ func initConfig(path string) (*config.Config, error) {
 		}
 	}
 
-	if cfg.TerraRPCAddr != "" {
+	if cfg.TerraRPCAddr != "" && (cfg.ChainID == "columbus-3" || cfg.ChainID == "columbus-4") {
 		return cfg, nil
 	}
 
 	if err := config.FromEnv(cfg); err != nil {
 		return nil, err
+	}
+
+	if cfg.ChainID != "columbus-3" && cfg.ChainID != "columbus-4" {
+		return nil, fmt.Errorf("ChainID must be one of: columbus-3, columbus-4")
 	}
 
 	return cfg, nil

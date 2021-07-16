@@ -29,7 +29,7 @@ type Config struct {
 	HTTPPort string `json:"http_port" envconfig:"HTTP_PORT" default:"8087"`
 
 	Managers        string        `json:"managers" envconfig:"MANAGERS" default:"127.0.0.1:8085"`
-	ManagerInterval time.Duration `json:"manager_interval" envconfig:"MANAGER_INTERVAL" default:"60s"`
+	ManagerInterval time.Duration `json:"manager_interval" envconfig:"MANAGER_INTERVAL" default:"10s"`
 	Hostname        string        `json:"hostname" envconfig:"HOSTNAME"`
 
 	TerraRPCAddr string `json:"terra_rpc_addr" envconfig:"TERRA_RPC_ADDR" required:"true"`
@@ -38,9 +38,9 @@ type Config struct {
 	ChainID      string `json:"chain_id" envconfig:"CHAIN_ID"`
 
 	MaximumHeightsToGet float64 `json:"maximum_heights_to_get" envconfig:"MAXIMUM_HEIGHTS_TO_GET" default:"10000"`
-	BigPage             float64 `json:"big_page" envconfig:"BIG_PAGE" default:"1000"`
 	RequestsPerSecond   int64   `json:"requests_per_second" envconfig:"REQUESTS_PER_SECOND" default:"33"`
 
+	StoreHTTPEndpoints  string        `json:"store_http_endpoints" envconfig:"STORE_HTTP_ENDPOINTS"`
 	HealthCheckInterval time.Duration `json:"health_check_interval" envconfig:"HEALTH_CHECK_INTERVAL" default:"10s"`
 
 	// Rollbar

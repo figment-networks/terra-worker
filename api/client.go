@@ -27,6 +27,7 @@ func init() {
 type Client struct {
 	baseURL     string
 	key         string
+	chainID     string
 	httpClient  *http.Client
 	logger      *zap.Logger
 	rateLimiter *rate.Limiter
@@ -34,7 +35,7 @@ type Client struct {
 }
 
 // NewClient returns a new client for a given endpoint
-func NewClient(url, key string, logger *zap.Logger, c *http.Client, reqPerSecLimit int) *Client {
+func NewClient(url, key, chainID string, logger *zap.Logger, c *http.Client, reqPerSecLimit int) *Client {
 	if c == nil {
 		c = &http.Client{
 			Timeout: time.Second * 40,
@@ -49,6 +50,7 @@ func NewClient(url, key string, logger *zap.Logger, c *http.Client, reqPerSecLim
 		baseURL:     url, //tendermint rpc or terra lcd url
 		key:         key,
 		httpClient:  c,
+		chainID:     chainID,
 		rateLimiter: rateLimiter,
 		cdc:         cdc,
 	}
@@ -64,4 +66,5 @@ func (c *Client) CDC() *amino.Codec {
 func InitMetrics() {
 	transactionConversionDuration = conversionDuration.WithLabels("transaction")
 	numberOfItemsTransactions = numberOfItems.WithLabels("transactions")
+	numberOfItemsInBlock = numberOfItemsBlock.WithLabels("transactions")
 }

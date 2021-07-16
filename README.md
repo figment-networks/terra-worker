@@ -2,6 +2,8 @@
 
 This repository contains a worker part dedicated for cosmos transactions.
 
+# Compatibility
+Works with `columbus-3` and `columbus-4` chains
 ## Worker
 Stateless worker is responsible for connecting with the chain, getting information, converting it to a common format and sending it back to manager.
 Worker can be connected with multiple managers but should always answer only to the one that sent request.
@@ -29,9 +31,9 @@ Worker also need some basic config:
 
 ```bash
     MANAGERS=0.0.0.0:8085
-    TERRA_RPC_ADDR=https://cosmoshub-3.address
+    TERRA_RPC_ADDR=https://terra-4.address
     DATAHUB_KEY=1QAZXSW23EDCvfr45TGB
-    CHAIN_ID=cosmoshub-3
+    CHAIN_ID=columbus-4
 ```
 
 Where
@@ -42,6 +44,25 @@ After running both binaries worker should successfully register itself to the ma
 
 If you wanna connect with manager running on docker instance add `HOSTNAME=host.docker.internal` (this is for OSX and Windows). For linux add your docker gateway address taken from ifconfig (it probably be the one from interface called docker0).
 
+
+## Developing Locally
+
+First, you will need to set up a few dependencies:
+
+1. [Install Go](https://golang.org/doc/install)
+2. A running [indexer-manager](https://github.com/figment-networks/indexer-manager) instance
+3. A running datastore API instance (configured with `STORE_HTTP_ENDPOINTS`).
+
+Then, run the worker with some environment config:
+
+```
+CHAIN_ID=columbus-4 \
+STORE_HTTP_ENDPOINTS=http://127.0.0.1:8986/input/jsonrpc \
+TERRA_RPC_ADDR=https://columbus-4--rpc--archive.datahub.figment.io \
+TERRA_LCD_ADDR=https://columbus-4--lcd--archive.datahub.figment.io \
+DATAHUB_KEY={YOUR KEY HERE} \
+go run ./cmd/terra-worker
+```
 ## Transaction Types
 List of currently supporter transaction types in terra-worker are (listed by modules):
 - bank:

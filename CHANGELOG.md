@@ -1,5 +1,19 @@
 # Change Log
 
+## dev
+
+### Added
+- Client handles `ReqIDGetLatestMark` task
+- Adds "store_http_endpoints" config variable. Blocks and transactions are now saved directly to store when performing`GetTransactions` and `GetLatestMark` tasks
+### Changed
+- Updated `indexer-manager` and `indexing-engine` dependencies 
+- "chain_id" is required config param - if not present, service will fail on start-up
+### Fixed
+- Is compatible with both columbus-3 and columbus-4 chains
+### Removed
+- Client no longer handles `ReqIDLatestData` task
+- "big_page" removed from config
+
 ## [0.1.4] - 2021-06-10
 
 ### Added

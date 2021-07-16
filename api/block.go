@@ -4,14 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"net/http"
 	"strconv"
 	"sync"
 	"time"
 
-	"github.com/figment-networks/indexer-manager/structs"
+	"github.com/cosmos/cosmos-sdk/types/rest"
+	"github.com/figment-networks/indexing-engine/structs"
 	"github.com/figment-networks/terra-worker/api/types"
 )
 
@@ -25,149 +24,115 @@ type BlocksMap struct {
 	EndHeight   uint64
 }
 
-// GetBlocksMeta fetches block metadata from given range of blocks
-func (c Client) GetBlocksMeta(ctx context.Context, params structs.HeightRange, limit uint64, blocks *BlocksMap, end chan<- error) {
-	req, err := http.NewRequest(http.MethodGet, c.baseURL+"/blockchain", nil)
+// GetBlock fetches block from chain.
+func (c Client) GetBlock(ctx context.Context, params structs.HeightHash) (block structs.Block, err error) {
+	err = c.rateLimiter.Wait(ctx)
 	if err != nil {
-		end <- err
-		return
+		return block, err
 	}
 
+	sCtx, cancel := context.WithTimeout(ctx, time.Second*50)
+	defer cancel()
+	req, err := http.NewRequestWithContext(sCtx, http.MethodGet, c.baseURL+"/block", nil)
+	if err != nil {
+		return block, err
+	}
+
+	req.Header.Add("Content-Type", "application/json")
 	if c.key != "" {
 		req.Header.Add("Authorization", c.key)
 	}
 
 	q := req.URL.Query()
-	if params.StartHeight > 0 {
-		q.Add("minHeight", strconv.FormatUint(params.StartHeight, 10))
+	if params.Height > 0 {
+		q.Add("height", strconv.FormatUint(params.Height, 10))
 	}
-
-	if params.EndHeight > 0 {
-		q.Add("maxHeight", strconv.FormatUint(params.EndHeight, 10))
-	}
-
-	if limit > 0 {
-		q.Add("limit", strconv.FormatUint(limit, 10))
-	}
-
 	req.URL.RawQuery = q.Encode()
-
-	if c.rateLimiter != nil {
-		err = c.rateLimiter.Wait(ctx)
-		if err != nil {
-			end <- err
-			return
-		}
-	}
 
 	n := time.Now()
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		end <- err
-		return
+		return block, err
 	}
-
-	rawRequestHTTPDuration.WithLabels("/blockchain", resp.Status).Observe(time.Since(n).Seconds())
+	rawRequestHTTPDuration.WithLabels("/block", resp.Status).Observe(time.Since(n).Seconds())
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 { // (lukanus): for Datahub errors
-		allBody, _ := ioutil.ReadAll(resp.Body)
-		end <- fmt.Errorf("Bad Response %d (%s)", resp.StatusCode, string(allBody))
-		return
+	decoder := json.NewDecoder(resp.Body)
+
+	if resp.StatusCode > 399 {
+		var result rest.ErrorResponse
+		if err = decoder.Decode(&result); err != nil {
+			return block, fmt.Errorf("[TERRA-API] Error fetching block: status=%d", resp.StatusCode)
+		}
+		return block, fmt.Errorf("[TERRA-API] Error fetching block; status=%d err=%s ", resp.StatusCode, result.Error)
 	}
 
-	if params.ChainID == "columbus-4" {
-		if err := decodeBlocksColumbus4(resp.Body, blocks); err != nil {
-			end <- err
-			return
-		}
-	} else {
-		if err := decodeBlocksColumbus3(resp.Body, blocks); err != nil {
-			end <- err
-			return
-		}
+	if c.chainID == "columbus-4" {
+		return decodeBlockColumbus4(decoder)
 	}
-
-	end <- nil
-	return
+	return decodeBlockColumbus3(decoder)
 }
 
-func decodeBlocksColumbus3(respBody io.ReadCloser, blocks *BlocksMap) (err error) {
-	decoder := json.NewDecoder(respBody)
-
-	var result *types.GetBlockchainResponse
-	if err := decoder.Decode(&result); err != nil {
-		return err
+func decodeBlockColumbus4(decoder *json.Decoder) (block structs.Block, err error) {
+	var result *types.GetBlockResponseV4
+	if err = decoder.Decode(&result); err != nil {
+		return block, err
 	}
 
 	if result.Error.Message != "" {
-		return fmt.Errorf("error fetching block: %s ", result.Error.Message)
+		return block, fmt.Errorf("[TERRA-API] Error fetching block: %s ", result.Error.Message)
+	}
+	bTime, err := time.Parse(time.RFC3339Nano, result.Result.Block.Header.Time)
+	if err != nil {
+		return block, err
+	}
+	uHeight, err := strconv.ParseUint(result.Result.Block.Header.Height, 10, 64)
+	if err != nil {
+		return block, err
 	}
 
-	blocks.Lock()
-	defer blocks.Unlock()
-	for _, meta := range result.Result.BlockMetas {
+	numTxs := len(result.Result.Block.Data.Txs)
 
-		bTime, _ := time.Parse(time.RFC3339Nano, meta.Header.Time)
-		uHeight, _ := strconv.ParseUint(meta.Header.Height, 10, 64)
-		numTxs, _ := strconv.ParseUint(meta.Header.NumTxs, 10, 64)
-
-		block := structs.Block{
-			Hash:                 meta.BlockID.Hash,
-			Height:               uHeight,
-			ChainID:              meta.Header.ChainID,
-			Time:                 bTime,
-			NumberOfTransactions: numTxs,
-		}
-		blocks.NumTxs += numTxs
-		if blocks.StartHeight == 0 || blocks.StartHeight > block.Height {
-			blocks.StartHeight = block.Height
-		}
-		if blocks.EndHeight == 0 || blocks.EndHeight < block.Height {
-			blocks.EndHeight = block.Height
-		}
-		blocks.Blocks[block.Height] = block
+	block = structs.Block{
+		Hash:                 result.Result.BlockID.Hash,
+		Height:               uHeight,
+		Time:                 bTime,
+		ChainID:              result.Result.Block.Header.ChainID,
+		NumberOfTransactions: uint64(numTxs),
 	}
-
 	return
 }
 
-func decodeBlocksColumbus4(respBody io.ReadCloser, blocks *BlocksMap) (err error) {
-	decoder := json.NewDecoder(respBody)
-
-	var result *types.GetBlockchainResponseV4
-	if err := decoder.Decode(&result); err != nil {
-		return err
+func decodeBlockColumbus3(decoder *json.Decoder) (block structs.Block, err error) {
+	var result *types.GetBlockResponse
+	if err = decoder.Decode(&result); err != nil {
+		return block, err
 	}
 
 	if result.Error.Message != "" {
-		return fmt.Errorf("error fetching block: %s ", result.Error.Message)
+		return block, fmt.Errorf("[TERRA-API] Error fetching block: %s ", result.Error.Message)
+	}
+	bTime, err := time.Parse(time.RFC3339Nano, result.Result.Block.Header.Time)
+	if err != nil {
+		return block, err
+	}
+	uHeight, err := strconv.ParseUint(result.Result.Block.Header.Height, 10, 64)
+	if err != nil {
+		return block, err
 	}
 
-	blocks.Lock()
-	defer blocks.Unlock()
-	for _, meta := range result.Result.BlockMetas {
-
-		bTime, _ := time.Parse(time.RFC3339Nano, meta.Header.Time)
-		uHeight, _ := strconv.ParseUint(meta.Header.Height, 10, 64)
-		numTxs, _ := strconv.ParseUint(meta.NumTxs, 10, 64)
-
-		block := structs.Block{
-			Hash:                 meta.BlockID.Hash,
-			Height:               uHeight,
-			ChainID:              meta.Header.ChainID,
-			Time:                 bTime,
-			NumberOfTransactions: numTxs,
-		}
-		blocks.NumTxs += numTxs
-		if blocks.StartHeight == 0 || blocks.StartHeight > block.Height {
-			blocks.StartHeight = block.Height
-		}
-		if blocks.EndHeight == 0 || blocks.EndHeight < block.Height {
-			blocks.EndHeight = block.Height
-		}
-
-		blocks.Blocks[block.Height] = block
+	numTxs, err := strconv.ParseUint(result.Result.Block.Header.NumTxs, 10, 64)
+	if err != nil {
+		return block, err
 	}
+
+	block = structs.Block{
+		Hash:                 result.Result.BlockMeta.BlockID.Hash,
+		Height:               uHeight,
+		Time:                 bTime,
+		ChainID:              result.Result.Block.Header.ChainID,
+		NumberOfTransactions: numTxs,
+	}
+
 	return
 }
