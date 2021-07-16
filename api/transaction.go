@@ -169,72 +169,54 @@ func rawToTransaction(ctx context.Context, logger *zap.Logger, in *tx.Tx, resp *
 
 func getSubEvent(msgRoute, msgType string, msg *codec_types.Any, lg types.ABCIMessageLog) (se structs.SubsetEvent, err error) {
 	switch msgRoute {
-	// case "bank":
-	// 	switch msg.Type() {
-	// 	case "multisend":
-	// 		return mapper.BankMultisendToSub(msg, lg)
-	// 	case "send":
-	// 		return mapper.BankSendToSub(msg, lg)
-	// 	}
-	// case "crisis":
-	// 	switch msg.Type() {
-	// 	case "verify_invariant":
-	// 		return mapper.CrisisVerifyInvariantToSub(msg)
-	// 	}
-	// case "distribution":
-	// 	switch msg.Type() {
-	// 	case "withdraw_validator_commission":
-	// 		return mapper.DistributionWithdrawValidatorCommissionToSub(msg, lg)
-	// 	case "set_withdraw_address":
-	// 		return mapper.DistributionSetWithdrawAddressToSub(msg)
-	// 	case "withdraw_delegator_reward":
-	// 		return mapper.DistributionWithdrawDelegatorRewardToSub(msg, lg)
-	// 	case "fund_community_pool":
-	// 		return mapper.DistributionFundCommunityPoolToSub(msg)
-	// 	}
-	// case "evidence":
-	// 	switch msg.Type() {
-	// 	case "submit_evidence":
-	// 		return mapper.EvidenceSubmitEvidenceToSub(msg)
-	// 	}
-	// case "gov":
-	// 	switch msg.Type() {
-	// 	case "deposit":
-	// 		return mapper.GovDepositToSub(msg, lg)
-	// 	case "vote":
-	// 		return mapper.GovVoteToSub(msg)
-	// 	case "submit_proposal":
-	// 		return mapper.GovSubmitProposalToSub(msg, lg)
-	// 	}
-	// case "market":
-	// 	switch msg.Type() {
-	// 	case "swap":
-	// 		return mapper.MarketSwapToSub(msg, lg)
-	// 	case "swapsend":
-	// 		return mapper.MarketSwapSendToSub(msg, lg)
-	// 	}
+	case "bank":
+		switch msgType {
+		case "MsgMultiSend":
+			return mapper.BankMultisendToSub(msg.Value, lg)
+		case "MsgSend":
+			return mapper.BankSendToSub(msg.Value, lg)
+		}
+	case "crisis":
+		switch msgType {
+		case "MsgVerifyInvariant":
+			return mapper.CrisisVerifyInvariantToSub(msg.Value)
+		}
+	case "distribution":
+		switch msgType {
+		case "MsgWithdrawValidatorCommission":
+			return mapper.DistributionWithdrawValidatorCommissionToSub(msg.Value, lg)
+		case "MsgSetWithdrawAddress":
+			return mapper.DistributionSetWithdrawAddressToSub(msg.Value)
+		case "MsgWithdrawDelegatorReward":
+			return mapper.DistributionWithdrawDelegatorRewardToSub(msg.Value, lg)
+		case "MsgFundCommunityPool":
+			return mapper.DistributionFundCommunityPoolToSub(msg.Value)
+		}
+	case "evidence":
+		switch msgType {
+		case "MsgSubmitEvidence":
+			return mapper.EvidenceSubmitEvidenceToSub(msg.Value)
+		}
+	case "gov":
+		switch msgType {
+		case "MsgDeposit":
+			return mapper.GovDepositToSub(msg.Value, lg)
+		case "MsgVote":
+			return mapper.GovVoteToSub(msg.Value)
+		case "MsgSubmitProposal":
+			return mapper.GovSubmitProposalToSub(msg.Value, lg)
+		}
+	case "market":
+		switch msgType {
+		case "MsgSwap":
+			return mapper.MarketSwapToSub(msg.Value, lg)
+		case "MsgSwapSend":
+			return mapper.MarketSwapSendToSub(msg.Value, lg)
+		}
+		// deprecated
 	// case "msgauth":
-	// 	switch msg.Type() {
-	// 	case "grant_authorization":
-	// 		return mapper.MsgauthGrantAuthorizationToSub(msg)
-	// 	case "revoke_authorization":
-	// 		return mapper.MsgauthRevokeAuthorizationToSub(msg)
-	// 	case "exec_delegated":
-	// 		se, msgs, er := mapper.MsgauthExecAuthorizedToSub(msg)
-	// 		if er != nil {
-	// 			return se, er
-	// 		}
-	// 		for _, subMsg := range msgs {
-	// 			subEv, subErr := getSubEvent(subMsg, lg)
-	// 			if subErr != nil {
-	// 				return se, err
-	// 			}
-	// 			se.Sub = append(se.Sub, subEv)
-
-	// 		}
-	// 		return se, nil
 	// 	}
-	case "oracle":
+	case "oracle": //terra type
 		switch msgType {
 		// normal prevote and vote are deprecated after columbus-4	https://github.com/terra-money/core/blob/master/x/oracle/spec/04_messages.md
 		// case "exchangeratevote":
@@ -248,37 +230,42 @@ func getSubEvent(msgRoute, msgType string, msg *codec_types.Any, lg types.ABCIMe
 		case "MsgAggregateExchangeRateVote":
 			return mapper.OracleAggregateExchangeRateVoteToSub(msg.Value)
 		}
-		// case "slashing":
-		// 	switch msg.Type() {
-		// 	case "unjail":
-		// 		return mapper.SlashingUnjailToSub(msg.Value)
-		// 	}
-		// case "staking":
-		// 	switch msg.Type() {
-		// 	case "begin_unbonding":
-		// 		return mapper.StakingUndelegateToSub(msg, lg)
-		// 	case "edit_validator":
-		// 		return mapper.StakingEditValidatorToSub(msg.Value)
-		// 	case "create_validator":
-		// 		return mapper.StakingCreateValidatorToSub(msg.Value)
-		// 	case "delegate":
-		// 		return mapper.StakingDelegateToSub(msg, lg)
-		// 	case "begin_redelegate":
-		// 		return mapper.StakingBeginRedelegateToSub(msg, lg)
-		// 	}
-		// case "wasm":
-		// 	switch msg.Type() {
-		// 	case "execute_contract":
-		// 		return mapper.WasmExecuteContractToSub(msg.Value)
-		// 	case "store_code":
-		// 		return mapper.WasmStoreCodeToSub(msg.Value)
-		// 	case "update_contract_owner":
-		// 		return mapper.WasmMsgUpdateContractOwnerToSub(msg.Value)
-		// 	case "instantiate_contract":
-		// 		return mapper.WasmMsgInstantiateContractToSub(msg.Value)
-		// 	case "migrate_contract":
-		// 		return mapper.WasmMsgMigrateContractToSub(msg.Value)
-		// 	}
+	// treasury/vesting? //terra
+	case "slashing":
+		switch msgType {
+		case "MsgUnjail":
+			return mapper.SlashingUnjailToSub(msg.Value)
+		}
+	case "staking":
+		switch msgType {
+		case "MsgUndelegate":
+			return mapper.StakingUndelegateToSub(msg.Value, lg)
+		case "MsgEditValidator":
+			return mapper.StakingEditValidatorToSub(msg.Value)
+		case "MsgCreateValidator":
+			return mapper.StakingCreateValidatorToSub(msg.Value)
+		case "MsgDelegate":
+			return mapper.StakingDelegateToSub(msg.Value, lg)
+		case "MsgBeginRedelegate":
+			return mapper.StakingBeginRedelegateToSub(msg.Value, lg)
+		}
+	case "wasm": //terra type
+		switch msgType {
+		case "MsgExecuteContract":
+			return mapper.WasmExecuteContractToSub(msg.Value)
+		case "MsgStoreCode":
+			return mapper.WasmStoreCodeToSub(msg.Value)
+		case "MsgMigrateCode": // new
+			return mapper.WasmMsgMigrateCodeToSub(msg.Value)
+		case "MsgUpdateContractAdmin": // formerly MsgUpdateContractOwner
+			return mapper.WasmMsgUpdateContractAdminToSub(msg.Value) //
+		case "MsgClearContractAdmin": // new
+			return mapper.WasmMsgClearContractAdminToSub(msg.Value)
+		case "MsgInstantiateContract":
+			return mapper.WasmMsgInstantiateContractToSub(msg.Value)
+		case "MsgMigrateContract":
+			return mapper.WasmMsgMigrateContractToSub(msg.Value)
+		}
 	}
 
 	return se, fmt.Errorf("problem with %s - %s:  %w", msgRoute, msgType, errUnknownMessageType)

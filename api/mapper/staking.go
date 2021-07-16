@@ -1,44 +1,31 @@
 package mapper
 
 import (
-	"errors"
 	"fmt"
 
-	"github.com/figment-networks/indexing-engine/structs"
-	"github.com/figment-networks/terra-worker/api/types"
+	shared "github.com/figment-networks/indexing-engine/structs"
 
-	sdk "github.com/cosmos/cosmos-sdk/types"
-	"github.com/tendermint/tendermint/libs/bech32"
-	"github.com/terra-project/core/types/util"
-	"github.com/terra-project/core/x/staking"
+	"github.com/cosmos/cosmos-sdk/types"
+	staking "github.com/cosmos/cosmos-sdk/x/staking/types"
+	"github.com/gogo/protobuf/proto"
 )
 
-const unbondedTokensPoolAddr = "terra1tygms3xhhs3yv487phx3dw4a95jn7t7l8l07dr"
+const unbondedAddr = "cosmos1tygms3xhhs3yv487phx3dw4a95jn7t7lpm470r"
 
-func StakingUndelegateToSub(msg sdk.Msg, logf types.LogFormat) (se structs.SubsetEvent, err error) {
-	u, ok := msg.(staking.MsgUndelegate)
-	if !ok {
-		return se, errors.New("Not a begin_unbonding type")
+// StakingUndelegateToSub transforms staking.MsgUndelegate sdk messages to SubsetEvent
+func StakingUndelegateToSub(msg []byte, lg types.ABCIMessageLog) (se shared.SubsetEvent, err error) {
+	u := &staking.MsgUndelegate{}
+	if err := proto.Unmarshal(msg, u); err != nil {
+		return se, fmt.Errorf("Not a undelegate type: %w", err)
 	}
-
-	bech32ValAddr, err := bech32.ConvertAndEncode(util.Bech32PrefixValAddr, u.ValidatorAddress.Bytes())
-	if err != nil {
-		return se, fmt.Errorf("error converting ValidatorAddress: %w", err)
-	}
-
-	bech32DelAddr, err := bech32.ConvertAndEncode(util.Bech32PrefixAccAddr, u.DelegatorAddress.Bytes())
-	if err != nil {
-		return se, fmt.Errorf("error converting DelegatorAddress: %w", err)
-	}
-
-	se = structs.SubsetEvent{
-		Type:   []string{"begin_unbonding"},
+	se = shared.SubsetEvent{
+		Type:   []string{"undelegate"},
 		Module: "staking",
-		Node: map[string][]structs.Account{
-			"delegator": {{ID: bech32DelAddr}},
-			"validator": {{ID: bech32ValAddr}},
+		Node: map[string][]shared.Account{
+			"delegator": {{ID: u.DelegatorAddress}},
+			"validator": {{ID: u.ValidatorAddress}},
 		},
-		Amount: map[string]structs.TransactionAmount{
+		Amount: map[string]shared.TransactionAmount{
 			"undelegate": {
 				Currency: u.Amount.Denom,
 				Numeric:  u.Amount.Amount.BigInt(),
@@ -47,34 +34,25 @@ func StakingUndelegateToSub(msg sdk.Msg, logf types.LogFormat) (se structs.Subse
 		},
 	}
 
-	err = produceTransfers(&se, "reward", unbondedTokensPoolAddr, logf)
+	err = produceTransfers(&se, "reward", unbondedAddr, lg)
 	return se, err
 }
 
-func StakingDelegateToSub(msg sdk.Msg, logf types.LogFormat) (se structs.SubsetEvent, err error) {
-	d, ok := msg.(staking.MsgDelegate)
-	if !ok {
-		return se, errors.New("Not a delegate type")
+// StakingDelegateToSub transforms staking.MsgDelegate sdk messages to SubsetEvent
+func StakingDelegateToSub(msg []byte, lg types.ABCIMessageLog) (se shared.SubsetEvent, err error) {
+	d := &staking.MsgDelegate{}
+	if err := proto.Unmarshal(msg, d); err != nil {
+		return se, fmt.Errorf("Not a delegate type: %w", err)
 	}
 
-	bech32ValAddr, err := bech32.ConvertAndEncode(util.Bech32PrefixValAddr, d.ValidatorAddress.Bytes())
-	if err != nil {
-		return se, fmt.Errorf("error converting ValidatorAddress: %w", err)
-	}
-
-	bech32DelAddr, err := bech32.ConvertAndEncode(util.Bech32PrefixAccAddr, d.DelegatorAddress.Bytes())
-	if err != nil {
-		return se, fmt.Errorf("error converting DelegatorAddress: %w", err)
-	}
-
-	se = structs.SubsetEvent{
+	se = shared.SubsetEvent{
 		Type:   []string{"delegate"},
 		Module: "staking",
-		Node: map[string][]structs.Account{
-			"delegator": {{ID: bech32DelAddr}},
-			"validator": {{ID: bech32ValAddr}},
+		Node: map[string][]shared.Account{
+			"delegator": {{ID: d.DelegatorAddress}},
+			"validator": {{ID: d.ValidatorAddress}},
 		},
-		Amount: map[string]structs.TransactionAmount{
+		Amount: map[string]shared.TransactionAmount{
 			"delegate": {
 				Currency: d.Amount.Denom,
 				Numeric:  d.Amount.Amount.BigInt(),
@@ -83,40 +61,26 @@ func StakingDelegateToSub(msg sdk.Msg, logf types.LogFormat) (se structs.SubsetE
 		},
 	}
 
-	err = produceTransfers(&se, "reward", "", logf)
+	err = produceTransfers(&se, "reward", "", lg)
 	return se, err
 }
 
-func StakingBeginRedelegateToSub(msg sdk.Msg, logf types.LogFormat) (se structs.SubsetEvent, err error) {
-	br, ok := msg.(staking.MsgBeginRedelegate)
-	if !ok {
-		return se, errors.New("Not a begin_redelegate type")
+// StakingBeginRedelegateToSub transforms staking.MsgBeginRedelegate sdk messages to SubsetEvent
+func StakingBeginRedelegateToSub(msg []byte, lg types.ABCIMessageLog) (se shared.SubsetEvent, err error) {
+	br := &staking.MsgBeginRedelegate{}
+	if err := proto.Unmarshal(msg, br); err != nil {
+		return se, fmt.Errorf("Not a begin_redelegate type: %w", err)
 	}
 
-	bech32ValDstAddr, err := bech32.ConvertAndEncode(util.Bech32PrefixValAddr, br.ValidatorDstAddress.Bytes())
-	if err != nil {
-		return se, fmt.Errorf("error converting ValidatorAddress: %w", err)
-	}
-
-	bech32ValSrcAddr, err := bech32.ConvertAndEncode(util.Bech32PrefixValAddr, br.ValidatorSrcAddress.Bytes())
-	if err != nil {
-		return se, fmt.Errorf("error converting ValidatorAddress: %w", err)
-	}
-
-	bech32DelAddr, err := bech32.ConvertAndEncode(util.Bech32PrefixAccAddr, br.DelegatorAddress.Bytes())
-	if err != nil {
-		return se, fmt.Errorf("error converting DelegatorAddress: %w", err)
-	}
-
-	se = structs.SubsetEvent{
+	se = shared.SubsetEvent{
 		Type:   []string{"begin_redelegate"},
 		Module: "staking",
-		Node: map[string][]structs.Account{
-			"delegator":             {{ID: bech32DelAddr}},
-			"validator_destination": {{ID: bech32ValDstAddr}},
-			"validator_source":      {{ID: bech32ValSrcAddr}},
+		Node: map[string][]shared.Account{
+			"delegator":             {{ID: br.DelegatorAddress}},
+			"validator_destination": {{ID: br.ValidatorDstAddress}},
+			"validator_source":      {{ID: br.ValidatorSrcAddress}},
 		},
-		Amount: map[string]structs.TransactionAmount{
+		Amount: map[string]shared.TransactionAmount{
 			"delegate": {
 				Currency: br.Amount.Denom,
 				Numeric:  br.Amount.Amount.BigInt(),
@@ -125,35 +89,25 @@ func StakingBeginRedelegateToSub(msg sdk.Msg, logf types.LogFormat) (se structs.
 		},
 	}
 
-	err = produceTransfers(&se, "reward", "", logf)
+	err = produceTransfers(&se, "reward", "", lg)
 	return se, err
 }
 
-func StakingCreateValidatorToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
-	ev, ok := msg.(staking.MsgCreateValidator)
-	if !ok {
-		return se, errors.New("Not a create_validator type")
+// StakingCreateValidatorToSub transforms staking.MsgCreateValidator sdk messages to SubsetEvent
+func StakingCreateValidatorToSub(msg []byte) (se shared.SubsetEvent, err error) {
+	ev := &staking.MsgCreateValidator{}
+	if err := proto.Unmarshal(msg, ev); err != nil {
+		return se, fmt.Errorf("Not a create_validator type: %w", err)
 	}
-
-	bech32ValAddr, err := bech32.ConvertAndEncode(util.Bech32PrefixValAddr, ev.ValidatorAddress.Bytes())
-	if err != nil {
-		return se, fmt.Errorf("error converting ValidatorAddress: %w", err)
-	}
-
-	bech32DelAddr, err := bech32.ConvertAndEncode(util.Bech32PrefixAccAddr, ev.DelegatorAddress.Bytes())
-	if err != nil {
-		return se, fmt.Errorf("error converting DelegatorAddress: %w", err)
-	}
-
-	return structs.SubsetEvent{
+	return shared.SubsetEvent{
 		Type:   []string{"create_validator"},
 		Module: "distribution",
-		Node: map[string][]structs.Account{
-			"delegator": {{ID: bech32DelAddr}},
+		Node: map[string][]shared.Account{
+			"delegator": {{ID: ev.DelegatorAddress}},
 			"validator": {
 				{
-					ID: bech32ValAddr,
-					Details: &structs.AccountDetails{
+					ID: ev.ValidatorAddress,
+					Details: &shared.AccountDetails{
 						Name:        ev.Description.Moniker,
 						Description: ev.Description.Details,
 						Contact:     ev.Description.SecurityContact,
@@ -162,7 +116,7 @@ func StakingCreateValidatorToSub(msg sdk.Msg) (se structs.SubsetEvent, err error
 				},
 			},
 		},
-		Amount: map[string]structs.TransactionAmount{
+		Amount: map[string]shared.TransactionAmount{
 			"self_delegation": {
 				Currency: ev.Value.Denom,
 				Numeric:  ev.Value.Amount.BigInt(),
@@ -174,37 +128,33 @@ func StakingCreateValidatorToSub(msg sdk.Msg) (se structs.SubsetEvent, err error
 			},
 			"commission_rate": {
 				Text:    ev.Commission.Rate.String(),
-				Numeric: ev.Commission.Rate.Int,
+				Numeric: ev.Commission.Rate.BigInt(),
 			},
 			"commission_max_rate": {
 				Text:    ev.Commission.MaxRate.String(),
-				Numeric: ev.Commission.MaxRate.Int,
+				Numeric: ev.Commission.MaxRate.BigInt(),
 			},
 			"commission_max_change_rate": {
 				Text:    ev.Commission.MaxChangeRate.String(),
-				Numeric: ev.Commission.MaxChangeRate.Int,
+				Numeric: ev.Commission.MaxChangeRate.BigInt(),
 			}},
 	}, err
 }
 
-func StakingEditValidatorToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
-	ev, ok := msg.(staking.MsgEditValidator)
-	if !ok {
-		return se, errors.New("Not a edit_validator type")
+// StakingEditValidatorToSub transforms staking.MsgEditValidator sdk messages to SubsetEvent
+func StakingEditValidatorToSub(msg []byte) (se shared.SubsetEvent, err error) {
+	ev := &staking.MsgEditValidator{}
+	if err := proto.Unmarshal(msg, ev); err != nil {
+		return se, fmt.Errorf("Not a edit_validator type: %w", err)
 	}
-	bech32ValAddr, err := bech32.ConvertAndEncode(util.Bech32PrefixValAddr, ev.ValidatorAddress.Bytes())
-	if err != nil {
-		return se, fmt.Errorf("error converting ValidatorAddress: %w", err)
-	}
-
-	sev := structs.SubsetEvent{
+	sev := shared.SubsetEvent{
 		Type:   []string{"edit_validator"},
 		Module: "distribution",
-		Node: map[string][]structs.Account{
+		Node: map[string][]shared.Account{
 			"validator": {
 				{
-					ID: bech32ValAddr,
-					Details: &structs.AccountDetails{
+					ID: ev.ValidatorAddress,
+					Details: &shared.AccountDetails{
 						Name:        ev.Description.Moniker,
 						Description: ev.Description.Details,
 						Contact:     ev.Description.SecurityContact,
@@ -216,18 +166,18 @@ func StakingEditValidatorToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) 
 	}
 
 	if ev.MinSelfDelegation != nil || ev.CommissionRate != nil {
-		sev.Amount = map[string]structs.TransactionAmount{}
+		sev.Amount = map[string]shared.TransactionAmount{}
 		if ev.MinSelfDelegation != nil {
-			sev.Amount["self_delegation_min"] = structs.TransactionAmount{
+			sev.Amount["self_delegation_min"] = shared.TransactionAmount{
 				Text:    ev.MinSelfDelegation.String(),
 				Numeric: ev.MinSelfDelegation.BigInt(),
 			}
 		}
 
 		if ev.CommissionRate != nil {
-			sev.Amount["commission_rate"] = structs.TransactionAmount{
+			sev.Amount["commission_rate"] = shared.TransactionAmount{
 				Text:    ev.CommissionRate.String(),
-				Numeric: ev.CommissionRate.Int,
+				Numeric: ev.CommissionRate.BigInt(),
 			}
 		}
 	}

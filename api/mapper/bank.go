@@ -8,19 +8,17 @@ import (
 	"strings"
 
 	"github.com/figment-networks/indexing-engine/structs"
-	"github.com/figment-networks/terra-worker/api/types"
+	"github.com/gogo/protobuf/proto"
 
+	"github.com/cosmos/cosmos-sdk/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	"github.com/terra-project/core/types/util"
-	"github.com/terra-project/core/x/bank"
-
-	"github.com/tendermint/tendermint/libs/bech32"
+	bank "github.com/cosmos/cosmos-sdk/x/bank/types"
 )
 
-func BankMultisendToSub(msg sdk.Msg, logf types.LogFormat) (se structs.SubsetEvent, err error) {
-	multisend, ok := msg.(bank.MsgMultiSend)
-	if !ok {
-		return se, errors.New("Not a multisend type")
+func BankMultisendToSub(msg []byte, lg types.ABCIMessageLog) (se structs.SubsetEvent, err error) {
+	multisend := &bank.MsgMultiSend{}
+	if err := proto.Unmarshal(msg, multisend); err != nil {
+		return se, fmt.Errorf("Not a multisend type: %w", err)
 	}
 
 	se = structs.SubsetEvent{
@@ -43,14 +41,14 @@ func BankMultisendToSub(msg sdk.Msg, logf types.LogFormat) (se structs.SubsetEve
 		se.Recipient = append(se.Recipient, evt)
 	}
 
-	err = produceTransfers(&se, "send", "", logf)
+	err = produceTransfers(&se, "send", "", lg)
 	return se, err
 }
 
-func BankSendToSub(msg sdk.Msg, logf types.LogFormat) (se structs.SubsetEvent, err error) {
-	send, ok := msg.(bank.MsgSend)
-	if !ok {
-		return se, errors.New("Not a send type")
+func BankSendToSub(msg []byte, lg types.ABCIMessageLog) (se structs.SubsetEvent, err error) {
+	send := &bank.MsgSend{}
+	if err := proto.Unmarshal(msg, send); err != nil {
+		return se, fmt.Errorf("Not a send type: %w", err)
 	}
 
 	se = structs.SubsetEvent{
@@ -64,18 +62,13 @@ func BankSendToSub(msg sdk.Msg, logf types.LogFormat) (se structs.SubsetEvent, e
 	evt, _ = bankProduceEvTx(send.ToAddress, send.Amount)
 	se.Recipient = append(se.Recipient, evt)
 
-	err = produceTransfers(&se, "send", "", logf)
+	err = produceTransfers(&se, "send", "", lg)
 	return se, err
 }
 
-func bankProduceEvTx(account sdk.AccAddress, coins sdk.Coins) (evt structs.EventTransfer, err error) {
-	bech32Addr := ""
-	if !account.Empty() {
-		bech32Addr, err = bech32.ConvertAndEncode(util.Bech32PrefixAccAddr, account.Bytes())
-	}
-
+func bankProduceEvTx(account string, coins sdk.Coins) (evt structs.EventTransfer, err error) {
 	evt = structs.EventTransfer{
-		Account: structs.Account{ID: bech32Addr},
+		Account: structs.Account{ID: account},
 	}
 	if len(coins) > 0 {
 		evt.Amounts = []structs.TransactionAmount{}
@@ -91,50 +84,56 @@ func bankProduceEvTx(account sdk.AccAddress, coins sdk.Coins) (evt structs.Event
 	return evt, nil
 }
 
-func produceTransfers(se *structs.SubsetEvent, transferType, skipAddr string, logf types.LogFormat) (err error) {
+func produceTransfers(se *structs.SubsetEvent, transferType, skipAddr string, lg types.ABCIMessageLog) (err error) {
 	var evts []structs.EventTransfer
 
-	for _, ev := range logf.Events {
+	for _, ev := range lg.Events {
 		if ev.Type != "transfer" {
 			continue
 		}
-		attr := ev.Attributes
 
-		for i, recip := range attr.Recipient {
-			if recip == skipAddr || len(attr.Amount) < i {
+		var latestRecipient string
+		for _, attr := range ev.GetAttributes() {
+			if attr.Key == "recipient" {
+				latestRecipient = attr.Value
+			}
+
+			if latestRecipient == skipAddr {
 				continue
 			}
-			amts := []structs.TransactionAmount{}
 
-			for _, amt := range strings.Split(attr.Amount[i], ",") { // (pacmessica): split amount because it may contain multiple amounts, eg. from logs `"value": "2896ukrw,16uluna,1umnt"`
-				attrAmt := structs.TransactionAmount{Numeric: &big.Int{}}
+			if attr.Key == "amount" {
+				amts := []structs.TransactionAmount{}
+				for _, amt := range strings.Split(attr.Value, ",") {
+					attrAmt := structs.TransactionAmount{Numeric: &big.Int{}}
 
-				sliced := getCurrency(amt)
-				var (
-					c       *big.Int
-					exp     int32
-					coinErr error
-				)
-				if len(sliced) == 3 {
-					attrAmt.Currency = sliced[2]
-					c, exp, coinErr = getCoin(sliced[1])
-				} else {
-					c, exp, coinErr = getCoin(amt)
+					sliced := getCurrency(amt)
+					var (
+						c       *big.Int
+						exp     int32
+						coinErr error
+					)
+					if len(sliced) == 3 {
+						attrAmt.Currency = sliced[2]
+						c, exp, coinErr = getCoin(sliced[1])
+					} else {
+						c, exp, coinErr = getCoin(amt)
+					}
+					if coinErr != nil {
+						return fmt.Errorf("[TERRA-API] Error parsing amount '%s': %s ", amt, coinErr)
+					}
+
+					attrAmt.Text = amt
+					attrAmt.Exp = exp
+					attrAmt.Numeric.Set(c)
+
+					amts = append(amts, attrAmt)
 				}
-				if coinErr != nil {
-					return fmt.Errorf("[TERRA-API] Error parsing amount '%s': %s ", amt, coinErr)
-				}
-
-				attrAmt.Text = amt
-				attrAmt.Exp = exp
-				attrAmt.Numeric.Set(c)
-
-				amts = append(amts, attrAmt)
+				evts = append(evts, structs.EventTransfer{
+					Amounts: amts,
+					Account: structs.Account{ID: latestRecipient},
+				})
 			}
-			evts = append(evts, structs.EventTransfer{
-				Amounts: amts,
-				Account: structs.Account{ID: recip},
-			})
 		}
 	}
 
