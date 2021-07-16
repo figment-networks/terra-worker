@@ -1,5 +1,6 @@
 package api
 
+/*
 import (
 	"context"
 	"encoding/json"
@@ -103,3 +104,4 @@ func (c *Client) GetReward(ctx context.Context, params structs.HeightAccount) (r
 
 	return resp, err
 }
+*/

@@ -1,133 +1,103 @@
 package mapper
 
 import (
-	"errors"
 	"fmt"
 
-	"github.com/figment-networks/indexing-engine/structs"
-	"github.com/figment-networks/terra-worker/api/types"
+	shared "github.com/figment-networks/indexing-engine/structs"
 
-	"github.com/tendermint/tendermint/libs/bech32"
-
-	sdk "github.com/cosmos/cosmos-sdk/types"
-	distributiontypes "github.com/cosmos/cosmos-sdk/x/distribution/types"
-
-	"github.com/terra-project/core/types/util"
-	"github.com/terra-project/core/x/distribution"
+	"github.com/cosmos/cosmos-sdk/types"
+	distribution "github.com/cosmos/cosmos-sdk/x/distribution/types"
+	"github.com/gogo/protobuf/proto"
 )
 
-func DistributionWithdrawValidatorCommissionToSub(msg sdk.Msg, logf types.LogFormat) (se structs.SubsetEvent, err error) {
-	wvc, ok := msg.(distribution.MsgWithdrawValidatorCommission)
-	if !ok {
-		return se, errors.New("Not a withdraw_validator_commission type")
+// DistributionWithdrawValidatorCommissionToSub transforms distribution.MsgWithdrawValidatorCommission sdk messages to SubsetEvent
+func DistributionWithdrawValidatorCommissionToSub(msg []byte, lg types.ABCIMessageLog) (se shared.SubsetEvent, err error) {
+	wvc := &distribution.MsgWithdrawValidatorCommission{}
+	if err := proto.Unmarshal(msg, wvc); err != nil {
+		return se, fmt.Errorf("Not a withdraw_validator_commission type: %w", err)
 	}
 
-	bech32ValAddr, err := bech32.ConvertAndEncode(util.Bech32PrefixValAddr, wvc.ValidatorAddress.Bytes())
-	if err != nil {
-		return se, fmt.Errorf("error converting ValidatorAddress: %w", err)
-	}
-
-	se = structs.SubsetEvent{
+	se = shared.SubsetEvent{
 		Type:   []string{"withdraw_validator_commission"},
 		Module: "distribution",
-		Node:   map[string][]structs.Account{"validator": {{ID: bech32ValAddr}}},
-		Recipient: []structs.EventTransfer{{
-			Account: structs.Account{ID: bech32ValAddr},
+		Node:   map[string][]shared.Account{"validator": {{ID: wvc.ValidatorAddress}}},
+		Recipient: []shared.EventTransfer{{
+			Account: shared.Account{ID: wvc.ValidatorAddress},
 		}},
 	}
 
-	err = produceTransfers(&se, "send", "", logf)
+	err = produceTransfers(&se, "send", "", lg)
 	return se, err
 }
 
-func DistributionSetWithdrawAddressToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
-	swa, ok := msg.(distribution.MsgSetWithdrawAddress)
-	if !ok {
-		return se, errors.New("Not a set_withdraw_address type")
+// DistributionSetWithdrawAddressToSub transforms distribution.MsgSetWithdrawAddress sdk messages to SubsetEvent
+func DistributionSetWithdrawAddressToSub(msg []byte) (se shared.SubsetEvent, err error) {
+	swa := &distribution.MsgSetWithdrawAddress{}
+	if err := proto.Unmarshal(msg, swa); err != nil {
+		return se, fmt.Errorf("Not a set_withdraw_address type: %w", err)
 	}
 
-	delegatorBech32ValAddr, err := bech32.ConvertAndEncode(util.Bech32PrefixAccAddr, swa.DelegatorAddress.Bytes())
-	if err != nil {
-		return se, fmt.Errorf("error converting DelegatorAddress: %w", err)
-	}
-	withdrawBech32ValAddr, err := bech32.ConvertAndEncode(util.Bech32PrefixAccAddr, swa.WithdrawAddress.Bytes())
-	if err != nil {
-		return se, fmt.Errorf("error converting WithdrawAddress: %w", err)
-	}
-
-	return structs.SubsetEvent{
+	return shared.SubsetEvent{
 		Type:   []string{"set_withdraw_address"},
 		Module: "distribution",
-		Node: map[string][]structs.Account{
-			"delegator": {{ID: delegatorBech32ValAddr}},
-			"withdraw":  {{ID: withdrawBech32ValAddr}},
+		Node: map[string][]shared.Account{
+			"delegator": {{ID: swa.DelegatorAddress}},
+			"withdraw":  {{ID: swa.WithdrawAddress}},
 		},
 	}, nil
 }
 
-func DistributionWithdrawDelegatorRewardToSub(msg sdk.Msg, logf types.LogFormat) (se structs.SubsetEvent, err error) {
-	wdr, ok := msg.(distribution.MsgWithdrawDelegatorReward)
-	if !ok {
-		return se, errors.New("Not a withdraw_delegator_reward type")
+// DistributionWithdrawDelegatorRewardToSub transforms distribution.MsgWithdrawDelegatorReward sdk messages to SubsetEvent
+func DistributionWithdrawDelegatorRewardToSub(msg []byte, lg types.ABCIMessageLog) (se shared.SubsetEvent, err error) {
+	wdr := &distribution.MsgWithdrawDelegatorReward{}
+	if err := proto.Unmarshal(msg, wdr); err != nil {
+		return se, fmt.Errorf("Not a withdraw_delegator_reward type: %w", err)
 	}
 
-	bech32DelAddr, err := bech32.ConvertAndEncode(util.Bech32PrefixAccAddr, wdr.DelegatorAddress.Bytes())
-	if err != nil {
-		return se, fmt.Errorf("error converting DelegatorAddress: %w", err)
-	}
-
-	bech32ValAddr, err := bech32.ConvertAndEncode(util.Bech32PrefixValAddr, wdr.ValidatorAddress.Bytes())
-	if err != nil {
-		return se, fmt.Errorf("error converting ValidatorAddress: %w", err)
-	}
-
-	se = structs.SubsetEvent{
+	se = shared.SubsetEvent{
 		Type:   []string{"withdraw_delegator_reward"},
 		Module: "distribution",
-		Node: map[string][]structs.Account{
-			"delegator": {{ID: bech32DelAddr}},
-			"validator": {{ID: bech32ValAddr}},
+		Node: map[string][]shared.Account{
+			"delegator": {{ID: wdr.DelegatorAddress}},
+			"validator": {{ID: wdr.ValidatorAddress}},
 		},
-		Recipient: []structs.EventTransfer{{
-			Account: structs.Account{ID: bech32ValAddr},
+		Recipient: []shared.EventTransfer{{
+			Account: shared.Account{ID: wdr.ValidatorAddress},
 		}},
 	}
 
-	err = produceTransfers(&se, "reward", "", logf)
+	err = produceTransfers(&se, "reward", "", lg)
 	return se, err
 }
 
-func DistributionFundCommunityPoolToSub(msg sdk.Msg) (se structs.SubsetEvent, err error) {
-	fcp, ok := msg.(distributiontypes.MsgFundCommunityPool)
-	if !ok {
-		return se, errors.New("Not a withdraw_fund_community_pool type")
+// DistributionFundCommunityPoolToSub transforms distribution.MsgFundCommunityPool sdk messages to SubsetEvent
+func DistributionFundCommunityPoolToSub(msg []byte) (se shared.SubsetEvent, err error) {
+	fcp := &distribution.MsgFundCommunityPool{}
+	if err := proto.Unmarshal(msg, fcp); err != nil {
+		return se, fmt.Errorf("Not a fund_community_pool type: %w", err)
 	}
 
-	bech32DepositerAddr, err := bech32.ConvertAndEncode(util.Bech32PrefixAccAddr, fcp.Depositor.Bytes())
-	if err != nil {
-		return se, fmt.Errorf("error converting DelegatorAddress: %w", err)
-	}
-
-	evt, err := distributionProduceEvTx(bech32DepositerAddr, fcp.Amount)
-	return structs.SubsetEvent{
+	evt, err := distributionProduceEvTx(fcp.Depositor, fcp.Amount)
+	return shared.SubsetEvent{
 		Type:   []string{"fund_community_pool"},
 		Module: "distribution",
-		Node: map[string][]structs.Account{
-			"depositor": {{ID: bech32DepositerAddr}},
+		Node: map[string][]shared.Account{
+			"depositor": {{ID: fcp.Depositor}},
 		},
-		Sender: []structs.EventTransfer{evt},
+		Sender: []shared.EventTransfer{evt},
 	}, err
 
 }
 
-func distributionProduceEvTx(account string, coins sdk.Coins) (evt structs.EventTransfer, err error) {
-	evt = structs.EventTransfer{
-		Account: structs.Account{ID: account},
+func distributionProduceEvTx(account string, coins types.Coins) (evt shared.EventTransfer, err error) {
+
+	evt = shared.EventTransfer{
+		Account: shared.Account{ID: account},
 	}
 	if len(coins) > 0 {
-		evt.Amounts = []structs.TransactionAmount{}
+		evt.Amounts = []shared.TransactionAmount{}
 		for _, coin := range coins {
-			txa := structs.TransactionAmount{
+			txa := shared.TransactionAmount{
 				Currency: coin.Denom,
 				Text:     coin.Amount.String(),
 			}

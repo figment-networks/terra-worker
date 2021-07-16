@@ -1,65 +1,51 @@
 package api
 
 import (
-	"net/http"
 	"time"
 
-	amino "github.com/tendermint/go-amino"
-	"github.com/terra-project/core/app"
-	"github.com/terra-project/core/x/auth"
-
-	sdk "github.com/cosmos/cosmos-sdk/types"
-	slashingCosmos "github.com/cosmos/cosmos-sdk/x/slashing"
+	"github.com/cosmos/cosmos-sdk/client/grpc/tmservice"
+	"github.com/cosmos/cosmos-sdk/types/tx"
+	"google.golang.org/grpc"
 
 	"go.uber.org/zap"
 	"golang.org/x/time/rate"
 )
 
-var cdcA = amino.NewCodec()
-
-func init() {
-	sdk.RegisterCodec(cdcA)
-	slashingCosmos.RegisterCodec(cdcA)
-	auth.RegisterCodec(cdcA)
+type ClientConfig struct {
+	ReqPerSecond        int
+	TimeoutBlockCall    time.Duration
+	TimeoutSearchTxCall time.Duration
 }
 
 // Client is a Tendermint RPC client for cosmos using figmentnetworks datahub
 type Client struct {
-	baseURL     string
-	key         string
-	chainID     string
-	httpClient  *http.Client
-	logger      *zap.Logger
-	rateLimiter *rate.Limiter
-	cdc         *amino.Codec
+	chainID string
+	logger  *zap.Logger
+	Sbc     *SimpleBlockCache
+
+	// GRPC
+	tmServiceClient tmservice.ServiceClient
+	txServiceClient tx.ServiceClient
+	rateLimiterGRPC *rate.Limiter
+
+	cfg *ClientConfig
 }
 
 // NewClient returns a new client for a given endpoint
-func NewClient(url, key, chainID string, logger *zap.Logger, c *http.Client, reqPerSecLimit int) *Client {
-	if c == nil {
-		c = &http.Client{
-			Timeout: time.Second * 40,
-		}
+func NewClient(chainID string, logger *zap.Logger, cli *grpc.ClientConn, cfg *ClientConfig) *Client {
+	rateLimiterGRPC := rate.NewLimiter(rate.Limit(cfg.ReqPerSecond), cfg.ReqPerSecond)
+
+	return &Client{
+		chainID: chainID,
+		logger:  logger,
+		Sbc:     NewSimpleBlockCache(400),
+
+		rateLimiterGRPC: rateLimiterGRPC,
+		tmServiceClient: tmservice.NewServiceClient(cli),
+		txServiceClient: tx.NewServiceClient(cli),
+
+		cfg: cfg,
 	}
-	rateLimiter := rate.NewLimiter(rate.Limit(reqPerSecLimit), reqPerSecLimit)
-
-	cdc := app.MakeCodec()
-
-	cli := &Client{
-		logger:      logger,
-		baseURL:     url, //tendermint rpc or terra lcd url
-		key:         key,
-		httpClient:  c,
-		chainID:     chainID,
-		rateLimiter: rateLimiter,
-		cdc:         cdc,
-	}
-
-	return cli
-}
-
-func (c *Client) CDC() *amino.Codec {
-	return c.cdc
 }
 
 // InitMetrics initialise metrics

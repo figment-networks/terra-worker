@@ -13,7 +13,7 @@ import (
 )
 
 // GetLatestMark gets latest block
-func (ic *IndexerClient) GetLatestMark(ctx context.Context, tr cStructs.TaskRequest, stream *cStructs.StreamAccess, client RPC) {
+func (ic *IndexerClient) GetLatestMark(ctx context.Context, tr cStructs.TaskRequest, stream *cStructs.StreamAccess, client GRPC) {
 	timer := metrics.NewTimer(getLatestDuration)
 	defer timer.ObserveDuration()
 

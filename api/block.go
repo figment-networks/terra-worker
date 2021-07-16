@@ -2,16 +2,13 @@ package api
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"net/http"
-	"strconv"
 	"sync"
 	"time"
 
-	"github.com/cosmos/cosmos-sdk/types/rest"
+	"github.com/cosmos/cosmos-sdk/client/grpc/tmservice"
 	"github.com/figment-networks/indexing-engine/structs"
-	"github.com/figment-networks/terra-worker/api/types"
+	"github.com/tendermint/tendermint/libs/bytes"
+	"google.golang.org/grpc"
 )
 
 // BlocksMap map of blocks to control block map
@@ -24,115 +21,62 @@ type BlocksMap struct {
 	EndHeight   uint64
 }
 
-// GetBlock fetches block from chain.
-func (c Client) GetBlock(ctx context.Context, params structs.HeightHash) (block structs.Block, err error) {
-	err = c.rateLimiter.Wait(ctx)
-	if err != nil {
-		return block, err
-	}
-
-	sCtx, cancel := context.WithTimeout(ctx, time.Second*50)
-	defer cancel()
-	req, err := http.NewRequestWithContext(sCtx, http.MethodGet, c.baseURL+"/block", nil)
-	if err != nil {
-		return block, err
-	}
-
-	req.Header.Add("Content-Type", "application/json")
-	if c.key != "" {
-		req.Header.Add("Authorization", c.key)
-	}
-
-	q := req.URL.Query()
-	if params.Height > 0 {
-		q.Add("height", strconv.FormatUint(params.Height, 10))
-	}
-	req.URL.RawQuery = q.Encode()
-
-	n := time.Now()
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return block, err
-	}
-	rawRequestHTTPDuration.WithLabels("/block", resp.Status).Observe(time.Since(n).Seconds())
-	defer resp.Body.Close()
-
-	decoder := json.NewDecoder(resp.Body)
-
-	if resp.StatusCode > 399 {
-		var result rest.ErrorResponse
-		if err = decoder.Decode(&result); err != nil {
-			return block, fmt.Errorf("[TERRA-API] Error fetching block: status=%d", resp.StatusCode)
+// GetBlock fetches most recent block from chain
+func (c *Client) GetBlock(ctx context.Context, params structs.HeightHash) (block structs.Block, er error) {
+	var ok bool
+	if params.Height != 0 {
+		block, ok = c.Sbc.Get(params.Height)
+		if ok {
+			return block, nil
 		}
-		return block, fmt.Errorf("[TERRA-API] Error fetching block; status=%d err=%s ", resp.StatusCode, result.Error)
 	}
 
-	if c.chainID == "columbus-4" {
-		return decodeBlockColumbus4(decoder)
-	}
-	return decodeBlockColumbus3(decoder)
-}
-
-func decodeBlockColumbus4(decoder *json.Decoder) (block structs.Block, err error) {
-	var result *types.GetBlockResponseV4
-	if err = decoder.Decode(&result); err != nil {
+	if err := c.rateLimiterGRPC.Wait(ctx); err != nil {
 		return block, err
 	}
 
-	if result.Error.Message != "" {
-		return block, fmt.Errorf("[TERRA-API] Error fetching block: %s ", result.Error.Message)
+	nctx, cancel := context.WithTimeout(ctx, c.cfg.TimeoutBlockCall)
+	defer cancel()
+	n := time.Now()
+	if params.Height == 0 {
+		lb, err := c.tmServiceClient.GetLatestBlock(nctx, &tmservice.GetLatestBlockRequest{})
+		if err != nil {
+			rawRequestGRPCDuration.WithLabels("GetLatestBlock", "error").Observe(time.Since(n).Seconds())
+			return block, err
+		}
+		rawRequestGRPCDuration.WithLabels("GetLatestBlock", "ok").Observe(time.Since(n).Seconds())
+
+		bh := bytes.HexBytes(lb.BlockId.Hash)
+
+		block = structs.Block{
+			Hash:                 bh.String(),
+			Height:               uint64(lb.Block.Header.Height),
+			Time:                 lb.Block.Header.Time,
+			ChainID:              lb.Block.Header.ChainID,
+			NumberOfTransactions: uint64(len(lb.Block.Data.Txs)),
+		}
+		c.Sbc.Add(block)
+
+		return block, nil
 	}
-	bTime, err := time.Parse(time.RFC3339Nano, result.Result.Block.Header.Time)
+
+	bbh, err := c.tmServiceClient.GetBlockByHeight(nctx, &tmservice.GetBlockByHeightRequest{Height: int64(params.Height)}, grpc.WaitForReady(true))
 	if err != nil {
+		rawRequestGRPCDuration.WithLabels("GetBlockByHeight", "error").Observe(time.Since(n).Seconds())
 		return block, err
 	}
-	uHeight, err := strconv.ParseUint(result.Result.Block.Header.Height, 10, 64)
-	if err != nil {
-		return block, err
-	}
+	rawRequestGRPCDuration.WithLabels("GetBlockByHeight", "ok").Observe(time.Since(n).Seconds())
 
-	numTxs := len(result.Result.Block.Data.Txs)
-
+	hb := bytes.HexBytes(bbh.BlockId.Hash)
 	block = structs.Block{
-		Hash:                 result.Result.BlockID.Hash,
-		Height:               uHeight,
-		Time:                 bTime,
-		ChainID:              result.Result.Block.Header.ChainID,
-		NumberOfTransactions: uint64(numTxs),
-	}
-	return
-}
-
-func decodeBlockColumbus3(decoder *json.Decoder) (block structs.Block, err error) {
-	var result *types.GetBlockResponse
-	if err = decoder.Decode(&result); err != nil {
-		return block, err
+		Hash:                 hb.String(),
+		Height:               uint64(bbh.Block.Header.Height),
+		Time:                 bbh.Block.Header.Time,
+		ChainID:              bbh.Block.Header.ChainID,
+		NumberOfTransactions: uint64(len(bbh.Block.Data.Txs)),
 	}
 
-	if result.Error.Message != "" {
-		return block, fmt.Errorf("[TERRA-API] Error fetching block: %s ", result.Error.Message)
-	}
-	bTime, err := time.Parse(time.RFC3339Nano, result.Result.Block.Header.Time)
-	if err != nil {
-		return block, err
-	}
-	uHeight, err := strconv.ParseUint(result.Result.Block.Header.Height, 10, 64)
-	if err != nil {
-		return block, err
-	}
+	c.Sbc.Add(block)
 
-	numTxs, err := strconv.ParseUint(result.Result.Block.Header.NumTxs, 10, 64)
-	if err != nil {
-		return block, err
-	}
-
-	block = structs.Block{
-		Hash:                 result.Result.BlockMeta.BlockID.Hash,
-		Height:               uHeight,
-		Time:                 bTime,
-		ChainID:              result.Result.Block.Header.ChainID,
-		NumberOfTransactions: numTxs,
-	}
-
-	return
+	return block, nil
 }

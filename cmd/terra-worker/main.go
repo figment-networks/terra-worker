@@ -108,12 +108,27 @@ func main() {
 
 	grpcServer := grpc.NewServer()
 
-	rpcClient := api.NewClient(cfg.TerraRPCAddr, cfg.DatahubKey, cfg.ChainID, logger.GetLogger(), nil, int(cfg.RequestsPerSecond))
-	lcdClient := api.NewClient(cfg.TerraLCDAddr, cfg.DatahubKey, cfg.ChainID, logger.GetLogger(), nil, int(cfg.RequestsPerSecond))
+	if cfg.TerraGRPCAddr == "" {
+		logger.Error(fmt.Errorf("cosmos grpc address is not set"))
+		return
+	}
+
+	grpcConn, dialErr := grpc.DialContext(ctx, cfg.TerraGRPCAddr, grpc.WithInsecure())
+	if dialErr != nil {
+		logger.Error(fmt.Errorf("error dialing grpc: %w", dialErr))
+		return
+	}
+	defer grpcConn.Close()
+
+	apiClient := api.NewClient(cfg.ChainID, logger.GetLogger(), grpcConn, &api.ClientConfig{
+		ReqPerSecond:        int(cfg.RequestsPerSecond),
+		TimeoutBlockCall:    cfg.TimeoutBlockCall,
+		TimeoutSearchTxCall: cfg.TimeoutTransactionCall,
+	})
 
 	storeEndpoints := strings.Split(cfg.StoreHTTPEndpoints, ",")
 	hStore := httpStore.NewHTTPStore(storeEndpoints, &http.Client{})
-	workerClient := client.NewIndexerClient(ctx, logger.GetLogger(), lcdClient, rpcClient, hStore, uint64(cfg.MaximumHeightsToGet))
+	workerClient := client.NewIndexerClient(ctx, logger.GetLogger(), apiClient, hStore, uint64(cfg.MaximumHeightsToGet))
 
 	worker := grpcIndexer.NewIndexerServer(ctx, workerClient, logger.GetLogger())
 	grpcProtoIndexer.RegisterIndexerServiceServer(grpcServer, worker)
@@ -182,16 +197,12 @@ func initConfig(path string) (*config.Config, error) {
 		}
 	}
 
-	if cfg.TerraRPCAddr != "" && (cfg.ChainID == "columbus-3" || cfg.ChainID == "columbus-4") {
+	if cfg.TerraGRPCAddr != "" {
 		return cfg, nil
 	}
 
 	if err := config.FromEnv(cfg); err != nil {
 		return nil, err
-	}
-
-	if cfg.ChainID != "columbus-3" && cfg.ChainID != "columbus-4" {
-		return nil, fmt.Errorf("ChainID must be one of: columbus-3, columbus-4")
 	}
 
 	return cfg, nil

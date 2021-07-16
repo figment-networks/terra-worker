@@ -3,7 +3,7 @@
 This repository contains a worker part dedicated for cosmos transactions.
 
 # Compatibility
-Works with `columbus-3` and `columbus-4` chains
+Works with `columbus-5` chain
 ## Worker
 Stateless worker is responsible for connecting with the chain, getting information, converting it to a common format and sending it back to manager.
 Worker can be connected with multiple managers but should always answer only to the one that sent request.
@@ -56,11 +56,9 @@ First, you will need to set up a few dependencies:
 Then, run the worker with some environment config:
 
 ```
-CHAIN_ID=columbus-4 \
+CHAIN_ID=bombay-0008 \
 STORE_HTTP_ENDPOINTS=http://127.0.0.1:8986/input/jsonrpc \
-TERRA_RPC_ADDR=https://columbus-4--rpc--archive.datahub.figment.io \
-TERRA_LCD_ADDR=https://columbus-4--lcd--archive.datahub.figment.io \
-DATAHUB_KEY={YOUR KEY HERE} \
+TERRA_GRPC_ADDR=127.0.0.1:9090 \
 go run ./cmd/terra-worker
 ```
 ## Transaction Types
@@ -77,15 +75,13 @@ List of currently supporter transaction types in terra-worker are (listed by mod
     `deposit` , `vote` , `submit_proposal`
 - market:
     `swap` , `swapsend`
-- msgauth:
-    `grant_authorization` , `revoke_authorization` , `exec_delegated`
 - oracle:
-    `exchangeratevote` , `exchangerateprevote` , `delegatefeeder` , `aggregateexchangerateprevote` , `aggregateexchangeratevote`
+`delegatefeeder` , `aggregateexchangerateprevote` , `aggregateexchangeratevote`
 - slashing:
     `unjail`
 - staking:
     `begin_unbonding` , `edit_validator` , `create_validator` , `delegate` , `begin_redelegate`
 - wasm:
-    `execute_contract`, `store_code`, `update_contract_owner` , `instantiate_contract` , `migrate_contract`
+    `execute_contract`, `store_code`, `update_contract_admin` , `instantiate_contract` , `migrate_contract`, `migrate_code`, `clear_contract_admin`
 - internal:
     `error`

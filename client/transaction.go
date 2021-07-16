@@ -18,7 +18,7 @@ func (ic *IndexerClient) BlockAndTx(ctx context.Context, height uint64) (blockWM
 	}
 
 	blockWM = structs.BlockWithMeta{Network: "terra", Version: "0.0.1"}
-	blockWM.Block, err = ic.rpc.GetBlock(ctx, structs.HeightHash{Height: uint64(height)})
+	blockWM.Block, err = ic.grpc.GetBlock(ctx, structs.HeightHash{Height: uint64(height)})
 	blockWM.ChainID = blockWM.Block.ChainID
 	if err != nil {
 		ic.logger.Error("[TERRA-CLIENT] Err Getting block", zap.Uint64("block", height), zap.Error(err), zap.Uint64("txs", blockWM.Block.NumberOfTransactions))
@@ -31,7 +31,7 @@ func (ic *IndexerClient) BlockAndTx(ctx context.Context, height uint64) (blockWM
 	if blockWM.Block.NumberOfTransactions > 0 {
 		ic.logger.Debug("[TERRA-CLIENT] Getting txs", zap.Uint64("block", height), zap.Uint64("txs", blockWM.Block.NumberOfTransactions))
 		var txs []structs.Transaction
-		txs, err = ic.rpc.SearchTx(ctx, structs.HeightHash{Height: height}, blockWM.Block, page)
+		txs, err = ic.grpc.SearchTx(ctx, structs.HeightHash{Height: height}, blockWM.Block, page)
 		for _, t := range txs {
 			txsWM = append(txsWM, structs.TransactionWithMeta{Network: "terra", ChainID: t.ChainID, Version: "0.0.1", Transaction: t})
 		}
