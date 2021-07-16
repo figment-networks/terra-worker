@@ -11,7 +11,6 @@ import (
 	"github.com/gogo/protobuf/proto"
 
 	"github.com/cosmos/cosmos-sdk/types"
-	sdk "github.com/cosmos/cosmos-sdk/types"
 	bank "github.com/cosmos/cosmos-sdk/x/bank/types"
 )
 
@@ -66,7 +65,7 @@ func BankSendToSub(msg []byte, lg types.ABCIMessageLog) (se structs.SubsetEvent,
 	return se, err
 }
 
-func bankProduceEvTx(account string, coins sdk.Coins) (evt structs.EventTransfer, err error) {
+func bankProduceEvTx(account string, coins types.Coins) (evt structs.EventTransfer, err error) {
 	evt = structs.EventTransfer{
 		Account: structs.Account{ID: account},
 	}

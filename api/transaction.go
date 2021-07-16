@@ -54,7 +54,7 @@ func (c *Client) SearchTx(ctx context.Context, r structs.HeightHash, block struc
 		}, grpc.WaitForReady(true))
 		cancel()
 
-		c.logger.Debug("[COSMOS-API] Request Time (/tx_search)", zap.Duration("duration", time.Now().Sub(now)))
+		c.logger.Debug("[TERRA-API] Request Time (/tx_search)", zap.Duration("duration", time.Now().Sub(now)))
 		if err != nil {
 			// rawRequestGRPCDuration.WithLabels("GetTxsEvent", "error").Observe(time.Since(now).Seconds())
 			return nil, err
@@ -84,7 +84,7 @@ func (c *Client) SearchTx(ctx context.Context, r structs.HeightHash, block struc
 
 	}
 
-	c.logger.Debug("[COSMOS-API] Sending requests ", zap.Int("number", len(txs)))
+	c.logger.Debug("[TERRA-API] Sending requests ", zap.Int("number", len(txs)))
 	return txs, nil
 }
 
@@ -118,12 +118,19 @@ func rawToTransaction(ctx context.Context, logger *zap.Logger, in *tx.Tx, resp *
 			}
 			lg := findLog(resp.Logs, index)
 
-			// tPath is "/terra.oracle.v1beta1.MsgAggregateExchangeRateVote"
+			// tPath is "/terra.oracle.v1beta1.MsgAggregateExchangeRateVote" or "/ibc.core.client.v1.MsgCreateClient"
 			tPath := strings.Split(m.TypeUrl, ".")
-			ev, err := getSubEvent(tPath[1], tPath[3], m, lg)
-			if len(ev.Type) > 0 {
-				tev.Kind = tPath[3]
-				tev.Sub = append(tev.Sub, ev)
+			var err error
+			var msgType string
+
+			if len(tPath) == 5 && tPath[0] == "/ibc" {
+				msgType = tPath[4]
+				err = addIBCSubEvent(tPath[2], msgType, &tev, m, lg)
+			} else if len(tPath) == 4 && tPath[0] == "/terra" {
+				msgType = tPath[3]
+				err = addSubEvent(tPath[1], msgType, &tev, m, lg)
+			} else {
+				err = fmt.Errorf("TypeURL is in wrong format: %v", m.TypeUrl)
 			}
 
 			if err != nil {
@@ -133,7 +140,7 @@ func rawToTransaction(ctx context.Context, logger *zap.Logger, in *tx.Tx, resp *
 					brokenTransactions.WithLabels(m.TypeUrl).Inc()
 				}
 
-				logger.Error("[COSMOS-API] Problem decoding transaction ", zap.Error(err), zap.String("type", tPath[1]), zap.String("route", m.TypeUrl), zap.Int64("height", resp.Height))
+				logger.Error("[TERRA-API] Problem decoding transaction ", zap.Error(err), zap.String("type", tPath[1]), zap.String("route", m.TypeUrl), zap.Int64("height", resp.Height))
 				// return trans, err
 			}
 
@@ -167,51 +174,65 @@ func rawToTransaction(ctx context.Context, logger *zap.Logger, in *tx.Tx, resp *
 	return trans, nil
 }
 
-func getSubEvent(msgRoute, msgType string, msg *codec_types.Any, lg types.ABCIMessageLog) (se structs.SubsetEvent, err error) {
+func addSubEvent(msgRoute, msgType string, tev *structs.TransactionEvent, msg *codec_types.Any, lg types.ABCIMessageLog) (err error) {
+	var ev structs.SubsetEvent
+
 	switch msgRoute {
 	case "bank":
 		switch msgType {
 		case "MsgMultiSend":
-			return mapper.BankMultisendToSub(msg.Value, lg)
+			ev, err = mapper.BankMultisendToSub(msg.Value, lg)
 		case "MsgSend":
-			return mapper.BankSendToSub(msg.Value, lg)
+			ev, err = mapper.BankSendToSub(msg.Value, lg)
+		default:
+			err = fmt.Errorf("problem with %s - %s: %w", msgRoute, msgType, errUnknownMessageType)
 		}
 	case "crisis":
 		switch msgType {
 		case "MsgVerifyInvariant":
-			return mapper.CrisisVerifyInvariantToSub(msg.Value)
+			ev, err = mapper.CrisisVerifyInvariantToSub(msg.Value)
+		default:
+			err = fmt.Errorf("problem with %s - %s: %w", msgRoute, msgType, errUnknownMessageType)
 		}
 	case "distribution":
 		switch msgType {
 		case "MsgWithdrawValidatorCommission":
-			return mapper.DistributionWithdrawValidatorCommissionToSub(msg.Value, lg)
+			ev, err = mapper.DistributionWithdrawValidatorCommissionToSub(msg.Value, lg)
 		case "MsgSetWithdrawAddress":
-			return mapper.DistributionSetWithdrawAddressToSub(msg.Value)
+			ev, err = mapper.DistributionSetWithdrawAddressToSub(msg.Value)
 		case "MsgWithdrawDelegatorReward":
-			return mapper.DistributionWithdrawDelegatorRewardToSub(msg.Value, lg)
+			ev, err = mapper.DistributionWithdrawDelegatorRewardToSub(msg.Value, lg)
 		case "MsgFundCommunityPool":
-			return mapper.DistributionFundCommunityPoolToSub(msg.Value)
+			ev, err = mapper.DistributionFundCommunityPoolToSub(msg.Value)
+		default:
+			err = fmt.Errorf("problem with %s - %s: %w", msgRoute, msgType, errUnknownMessageType)
 		}
 	case "evidence":
 		switch msgType {
 		case "MsgSubmitEvidence":
-			return mapper.EvidenceSubmitEvidenceToSub(msg.Value)
+			ev, err = mapper.EvidenceSubmitEvidenceToSub(msg.Value)
+		default:
+			err = fmt.Errorf("problem with %s - %s: %w", msgRoute, msgType, errUnknownMessageType)
 		}
 	case "gov":
 		switch msgType {
 		case "MsgDeposit":
-			return mapper.GovDepositToSub(msg.Value, lg)
+			ev, err = mapper.GovDepositToSub(msg.Value, lg)
 		case "MsgVote":
-			return mapper.GovVoteToSub(msg.Value)
+			ev, err = mapper.GovVoteToSub(msg.Value)
 		case "MsgSubmitProposal":
-			return mapper.GovSubmitProposalToSub(msg.Value, lg)
+			ev, err = mapper.GovSubmitProposalToSub(msg.Value, lg)
+		default:
+			err = fmt.Errorf("problem with %s - %s: %w", msgRoute, msgType, errUnknownMessageType)
 		}
-	case "market":
+	case "market": // terra type
 		switch msgType {
 		case "MsgSwap":
-			return mapper.MarketSwapToSub(msg.Value, lg)
+			ev, err = mapper.MarketSwapToSub(msg.Value, lg)
 		case "MsgSwapSend":
-			return mapper.MarketSwapSendToSub(msg.Value, lg)
+			ev, err = mapper.MarketSwapSendToSub(msg.Value, lg)
+		default:
+			err = fmt.Errorf("problem with %s - %s: %w", msgRoute, msgType, errUnknownMessageType)
 		}
 		// deprecated
 	// case "msgauth":
@@ -220,55 +241,141 @@ func getSubEvent(msgRoute, msgType string, msg *codec_types.Any, lg types.ABCIMe
 		switch msgType {
 		// normal prevote and vote are deprecated after columbus-4	https://github.com/terra-money/core/blob/master/x/oracle/spec/04_messages.md
 		// case "exchangeratevote":
-		// 	return mapper.OracleExchangeRateVoteToSub(msg.Value)
+		// 	ev, err = mapper.OracleExchangeRateVoteToSub(msg.Value)
 		// case "exchangerateprevote":
-		// 	return mapper.OracleExchangeRatePrevoteToSub(msg.Value)
+		// 	ev, err = mapper.OracleExchangeRatePrevoteToSub(msg.Value)
 		case "MsgDelegateFeedConsent":
-			return mapper.OracleDelegateFeedConsent(msg.Value)
+			ev, err = mapper.OracleDelegateFeedConsent(msg.Value)
 		case "MsgAggregateExchangeRatePrevote":
-			return mapper.OracleAggregateExchangeRatePrevoteToSub(msg.Value)
+			ev, err = mapper.OracleAggregateExchangeRatePrevoteToSub(msg.Value)
 		case "MsgAggregateExchangeRateVote":
-			return mapper.OracleAggregateExchangeRateVoteToSub(msg.Value)
+			ev, err = mapper.OracleAggregateExchangeRateVoteToSub(msg.Value)
+		default:
+			err = fmt.Errorf("problem with %s - %s: %w", msgRoute, msgType, errUnknownMessageType)
 		}
-	// treasury/vesting? //terra
 	case "slashing":
 		switch msgType {
 		case "MsgUnjail":
-			return mapper.SlashingUnjailToSub(msg.Value)
+			ev, err = mapper.SlashingUnjailToSub(msg.Value)
+		default:
+			err = fmt.Errorf("problem with %s - %s: %w", msgRoute, msgType, errUnknownMessageType)
 		}
 	case "staking":
 		switch msgType {
 		case "MsgUndelegate":
-			return mapper.StakingUndelegateToSub(msg.Value, lg)
+			ev, err = mapper.StakingUndelegateToSub(msg.Value, lg)
 		case "MsgEditValidator":
-			return mapper.StakingEditValidatorToSub(msg.Value)
+			ev, err = mapper.StakingEditValidatorToSub(msg.Value)
 		case "MsgCreateValidator":
-			return mapper.StakingCreateValidatorToSub(msg.Value)
+			ev, err = mapper.StakingCreateValidatorToSub(msg.Value)
 		case "MsgDelegate":
-			return mapper.StakingDelegateToSub(msg.Value, lg)
+			ev, err = mapper.StakingDelegateToSub(msg.Value, lg)
 		case "MsgBeginRedelegate":
-			return mapper.StakingBeginRedelegateToSub(msg.Value, lg)
+			ev, err = mapper.StakingBeginRedelegateToSub(msg.Value, lg)
+		default:
+			err = fmt.Errorf("problem with %s - %s: %w", msgRoute, msgType, errUnknownMessageType)
 		}
 	case "wasm": //terra type
 		switch msgType {
 		case "MsgExecuteContract":
-			return mapper.WasmExecuteContractToSub(msg.Value)
+			ev, err = mapper.WasmExecuteContractToSub(msg.Value)
 		case "MsgStoreCode":
-			return mapper.WasmStoreCodeToSub(msg.Value)
+			ev, err = mapper.WasmStoreCodeToSub(msg.Value)
 		case "MsgMigrateCode": // new
-			return mapper.WasmMsgMigrateCodeToSub(msg.Value)
+			ev, err = mapper.WasmMsgMigrateCodeToSub(msg.Value)
 		case "MsgUpdateContractAdmin": // formerly MsgUpdateContractOwner
-			return mapper.WasmMsgUpdateContractAdminToSub(msg.Value) //
+			ev, err = mapper.WasmMsgUpdateContractAdminToSub(msg.Value) //
 		case "MsgClearContractAdmin": // new
-			return mapper.WasmMsgClearContractAdminToSub(msg.Value)
+			ev, err = mapper.WasmMsgClearContractAdminToSub(msg.Value)
 		case "MsgInstantiateContract":
-			return mapper.WasmMsgInstantiateContractToSub(msg.Value)
+			ev, err = mapper.WasmMsgInstantiateContractToSub(msg.Value)
 		case "MsgMigrateContract":
-			return mapper.WasmMsgMigrateContractToSub(msg.Value)
+			ev, err = mapper.WasmMsgMigrateContractToSub(msg.Value)
+		default:
+			err = fmt.Errorf("problem with %s - %s: %w", msgRoute, msgType, errUnknownMessageType)
 		}
+	default:
+		err = fmt.Errorf("problem with %s - %s: %w", msgRoute, msgType, errUnknownMessageType)
 	}
 
-	return se, fmt.Errorf("problem with %s - %s:  %w", msgRoute, msgType, errUnknownMessageType)
+	if len(ev.Type) > 0 {
+		tev.Sub = append(tev.Sub, ev)
+		tev.Kind = ev.Type[0]
+	}
+	return err
+}
+
+func addIBCSubEvent(msgRoute, msgType string, tev *structs.TransactionEvent, m *codec_types.Any, lg types.ABCIMessageLog) (err error) {
+	var ev structs.SubsetEvent
+
+	switch msgRoute {
+	case "client":
+		switch msgType {
+		case "MsgCreateClient":
+			ev, err = mapper.IBCCreateClientToSub(m.Value)
+		case "MsgUpdateClient":
+			ev, err = mapper.IBCUpdateClientToSub(m.Value)
+		case "MsgUpgradeClient":
+			ev, err = mapper.IBCUpgradeClientToSub(m.Value)
+		case "MsgSubmitMisbehaviour":
+			ev, err = mapper.IBCSubmitMisbehaviourToSub(m.Value)
+		default:
+			err = fmt.Errorf("problem with %s - %s: %w", msgRoute, msgType, errUnknownMessageType)
+		}
+	case "connection":
+		switch msgType {
+		case "MsgConnectionOpenInit":
+			ev, err = mapper.IBCConnectionOpenInitToSub(m.Value)
+		case "MsgConnectionOpenConfirm":
+			ev, err = mapper.IBCConnectionOpenConfirmToSub(m.Value)
+		case "MsgConnectionOpenAck":
+			ev, err = mapper.IBCConnectionOpenAckToSub(m.Value)
+		case "MsgConnectionOpenTry":
+			ev, err = mapper.IBCConnectionOpenTryToSub(m.Value)
+		default:
+			err = fmt.Errorf("problem with %s - %s:  %w", msgRoute, msgType, errUnknownMessageType)
+		}
+	case "channel":
+		switch msgType {
+		case "MsgChannelOpenInit":
+			ev, err = mapper.IBCChannelOpenInitToSub(m.Value)
+		case "MsgChannelOpenTry":
+			ev, err = mapper.IBCChannelOpenTryToSub(m.Value)
+		case "MsgChannelOpenConfirm":
+			ev, err = mapper.IBCChannelOpenConfirmToSub(m.Value)
+		case "MsgChannelOpenAck":
+			ev, err = mapper.IBCChannelOpenAckToSub(m.Value)
+		case "MsgChannelCloseInit":
+			ev, err = mapper.IBCChannelCloseInitToSub(m.Value)
+		case "MsgChannelCloseConfirm":
+			ev, err = mapper.IBCChannelCloseConfirmToSub(m.Value)
+		case "MsgRecvPacket":
+			ev, err = mapper.IBCChannelRecvPacketToSub(m.Value)
+		case "MsgTimeout":
+			ev, err = mapper.IBCChannelTimeoutToSub(m.Value)
+		case "MsgAcknowledgement":
+			ev, err = mapper.IBCChannelAcknowledgementToSub(m.Value)
+
+		default:
+			err = fmt.Errorf("problem with %s - %s:  %w", msgRoute, msgType, errUnknownMessageType)
+		}
+	case "transfer":
+		switch msgType {
+		case "MsgTransfer":
+			ev, err = mapper.IBCTransferToSub(m.Value)
+		default:
+			err = fmt.Errorf("problem with %s - %s:  %w", msgRoute, msgType, errUnknownMessageType)
+		}
+	default:
+		err = fmt.Errorf("problem with %s - %s:  %w", msgRoute, msgType, errUnknownMessageType)
+	}
+
+	if len(ev.Type) > 0 {
+		tev.Sub = append(tev.Sub, ev)
+		tev.Kind = ev.Type[0]
+	}
+
+	return err
 }
 
 func findLog(logs types.ABCIMessageLogs, index int) types.ABCIMessageLog {
