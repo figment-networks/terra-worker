@@ -56,20 +56,20 @@ func (c *Client) SearchTx(ctx context.Context, r structs.HeightHash, block struc
 
 		c.logger.Debug("[TERRA-API] Request Time (/tx_search)", zap.Duration("duration", time.Now().Sub(now)))
 		if err != nil {
-			// rawRequestGRPCDuration.WithLabels("GetTxsEvent", "error").Observe(time.Since(now).Seconds())
+			rawRequestGRPCDuration.WithLabels("GetTxsEvent", "error").Observe(time.Since(now).Seconds())
 			return nil, err
 		}
-		// rawRequestGRPCDuration.WithLabels("GetTxsEvent", "ok").Observe(time.Since(now).Seconds())
-		// numberOfItemsTransactions.Add(float64(len(grpcRes.Txs)))
+		rawRequestGRPCDuration.WithLabels("GetTxsEvent", "ok").Observe(time.Since(now).Seconds())
+		numberOfItemsTransactions.Add(float64(len(grpcRes.Txs)))
 
 		for i, trans := range grpcRes.Txs {
 			resp := grpcRes.TxResponses[i]
-			// n := time.Now()
+			n := time.Now()
 			tx, err := rawToTransaction(ctx, c.logger, trans, resp)
 			if err != nil {
 				return nil, err
 			}
-			// conversionDuration.WithLabels(resp.Tx.TypeUrl).Observe(time.Since(n).Seconds())
+			conversionDuration.WithLabels(resp.Tx.TypeUrl).Observe(time.Since(n).Seconds())
 			tx.BlockHash = block.Hash
 			tx.ChainID = block.ChainID
 			tx.Time = block.Time
@@ -234,7 +234,7 @@ func addSubEvent(msgRoute, msgType string, tev *structs.TransactionEvent, msg *c
 		default:
 			err = fmt.Errorf("problem with %s - %s: %w", msgRoute, msgType, errUnknownMessageType)
 		}
-		// deprecated
+		// deprecated after columbus-4
 	// case "msgauth":
 	// 	}
 	case "oracle": //terra type
@@ -281,11 +281,11 @@ func addSubEvent(msgRoute, msgType string, tev *structs.TransactionEvent, msg *c
 			ev, err = mapper.WasmExecuteContractToSub(msg.Value)
 		case "MsgStoreCode":
 			ev, err = mapper.WasmStoreCodeToSub(msg.Value)
-		case "MsgMigrateCode": // new
+		case "MsgMigrateCode":
 			ev, err = mapper.WasmMsgMigrateCodeToSub(msg.Value)
 		case "MsgUpdateContractAdmin": // formerly MsgUpdateContractOwner
-			ev, err = mapper.WasmMsgUpdateContractAdminToSub(msg.Value) //
-		case "MsgClearContractAdmin": // new
+			ev, err = mapper.WasmMsgUpdateContractAdminToSub(msg.Value)
+		case "MsgClearContractAdmin":
 			ev, err = mapper.WasmMsgClearContractAdminToSub(msg.Value)
 		case "MsgInstantiateContract":
 			ev, err = mapper.WasmMsgInstantiateContractToSub(msg.Value)
